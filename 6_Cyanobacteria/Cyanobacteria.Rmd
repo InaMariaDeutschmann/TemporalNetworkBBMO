@@ -386,32 +386,6 @@ myCyano_only <- myCyano[which(myCyano$Source_Phylum=="Cyanobacteria" & myCyano$T
 ```
 
 ## BLAST
-Prepare sequence table for BLAST
-```{r}
-ABUND <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
-ABUND$help <- 1
-TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.tsv",sep=""), header = TRUE)
-SEQ <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Sequence.txt",sep=""), header = TRUE)
-
-dt <- TAX[which(TAX$Phylum=="Cyanobacteria"),]
-dt <- merge(dt, ABUND[,c("ID","help")], by="ID", all.x=TRUE, all.y=FALSE)
-dt <- dt[which(dt$help==1),]
-dt$help <- NULL
-dt$ASV <- gsub("bn_","",gsub("bp_","",dt$ID))
-dt$sizefraction <- substr(dt$ID,2,2)
-unique(dt$ASV)
-table(dt[,c("ASV","sizefraction")])
-table(dt$sizefraction)
-
-dt <- merge(dt, SEQ, by.x="ID", by.y="ASVNAME", all.x=TRUE, all.y=FALSE)
-head(dt)
-
-# install.packages("seqRFLP")
-library("seqRFLP")
-dt_temp <- unique(dt[,c("ASV","Ref_seq")])
-dt.fasta <- dataframe2fas(dt_temp, file = paste(PATH,"/6_Cyanobacteria/Cyanobacteria.fasta",sep=""))
-```
-
 Reading in Blast result and keeping only 100%
 ```{r}
 dtBlast <- read.table(paste(PATH,"/6_Cyanobacteria/Blast_Cyanorak_v2/sequenceserver-std_tsv_report-2.tsv",sep=""), header = FALSE)
