@@ -3,7 +3,7 @@
 Preprint: available soon
 
 This repository contains the data needed to redo the analysis:
-- The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, environmental data, 
+- The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, and environmental data including nutrients
 - the networks
 - R-Markdowns for data analysis 
 - commands to run eLSA for network construction
