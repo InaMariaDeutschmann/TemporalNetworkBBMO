@@ -1,0 +1,478 @@
+---
+title: "Cyanobacteria"
+author: "Ina Maria Deutschmann"
+date: "4/6/2021"
+output: html_document
+---
+
+# Cyanobacteria
+set path
+```{r}
+PATH <- "~/Dropbox/DATA/Project_DynNW_2021_March/Github"
+```
+
+Required Packages
+```{r, echo = FALSE}
+library(ggplot2)
+library(ggridges)
+theme_set(theme_minimal())
+library(reshape)
+library(dplyr)
+library(rstatix)
+```
+
+Color (as in Chord Diagrams)
+```{r}
+TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.tsv",sep=""), header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+rownames(TAX) <- TAX$ID
+NW <- read.table(paste(PATH,"/3_NetworkProperties/AssociationPrevalence.tsv",sep=""), header = TRUE, stringsAsFactors = FALSE)
+NW$Source_Phylum <- TAX[as.character(NW$Source),"Phylum"]
+NW$Target_Phylum <- TAX[as.character(NW$Target),"Phylum"]
+NW$Source_Phylum[which(NW$Source_Phylum=="Proteobacteria")] <- TAX[as.character(NW$Source[which(NW$Source_Phylum=="Proteobacteria")]),"Class"]
+NW$Target_Phylum[which(NW$Target_Phylum=="Proteobacteria")] <- TAX[as.character(NW$Target[which(NW$Target_Phylum=="Proteobacteria")]),"Class"]
+Phylum_IDs <- unique(c(as.character(NW$Source_Phylum), as.character(NW$Target_Phylum)))
+
+my_grid_col_adjusted <- as.data.frame(colorRampPalette(brewer.pal(8, "Set2"))(length(Phylum_IDs)))
+rownames(my_grid_col_adjusted) <- Phylum_IDs
+colnames(my_grid_col_adjusted) <- "color"
+my_grid_col_adjusted <- t(my_grid_col_adjusted)
+sort(substr(colnames(my_grid_col_adjusted),1,5))
+sort(colnames(my_grid_col_adjusted))
+my_grid_col_adjusted <- cbind(my_grid_col_adjusted, Z="white")
+
+# Colors
+my_grid_col_adjusted["color",sort(colnames(my_grid_col_adjusted))]
+```
+                    color    
+Actinobacteria      "#DB9281"
+Actinobacteria_X    "#AB98C8"
+Alphaproteobacteria "#8CB493"
+Bacteroidetes       "#DA9870"
+Centroheliozoa      "#E5C490"
+Cercozoa            "#CCBBA2"
+Chloroflexi         "#BE979C"
+Chlorophyta         "#B3D84E"
+Choanoflagellida    "#BFB7AA"
+Ciliophora          "#F8D831"
+Cryptophyta         "#E1D83B"
+Cyanobacteria       "#66C2A5"
+Dadabacteria        "#D98DC4"
+Deltaproteobacteria "#C292C6"
+Dinoflagellata      "#BEBB7D"
+Epsilonbacteraeota  "#939ECA"
+Eukaryota_XX        "#B3B3B3"
+Firmicutes          "#DF92B6"
+Gammaproteobacteria "#F78D65"
+Katablepharidophyta "#D9C09A"
+Nitrospinae         "#CEA699"
+Ochrophyta          "#ADCF60"
+Picozoa             "#FAD541"
+Planctomycetes      "#A19CB7"
+Radiolaria          "#CAD844"
+Stramenopiles_X     "#ECCA76"
+Telonemia           "#F3CF5B"
+Verrucomicrobia     "#B3A682"
+Z                   "white" 
+
+## Fraction of associations including Cyanobacteria
+```{r}
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.txt",sep=""), header = TRUE)
+rownames(TAX) <- TAX$ID
+NW$Source_Phylum <- TAX[as.character(NW$Source),"Phylum"]
+NW$Target_Phylum <- TAX[as.character(NW$Target),"Phylum"]
+NW$Source_Class <- TAX[as.character(NW$Source),"Class"]
+NW$Target_Class <- TAX[as.character(NW$Target),"Class"]
+NW$Source_Genus <- TAX[as.character(NW$Source),"Genus"]
+NW$Target_Genus <- TAX[as.character(NW$Target),"Genus"]
+NW$Cyano <- "noCyano"
+NW$Cyano[which(NW$Source_Phylum=="Cyanobacteria" | NW$Target_Phylum=="Cyanobacteria")] <- "Cyano"
+
+Abund <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+Cyanoabundances <- colSums(Abund[which(TAX[as.character(Abund$ID),"Phylum"]=="Cyanobacteria"),-1])
+
+Edges <- data.frame(ID=colnames(NW)[grep("BL",colnames(NW))])
+Edges$num_edges <- colSums(NW[,grep("BL",colnames(NW))])
+Edges$num_edges_Cyano <- colSums(NW[which(NW$Source_Phylum=="Cyanobacteria" | NW$Target_Phylum=="Cyanobacteria"),grep("BL",colnames(NW))])
+#ggplot(Edges, aes(x=ID, y=num_edges)) + geom_point()
+
+dt_temp <- melt(NW[,c(which(colnames(NW)=="Cyano"),grep("BL",colnames(NW)))])
+head(dt_temp)
+dt_temp$month_num <- rep(c(1:120),each=dim(NW)[1])
+dt_temp$CyanoAbundance <- rep(Cyanoabundances,each=dim(NW)[1])
+dt_temp <- dt_temp[which(dt_temp$value==1),]
+
+coeff <- 1/max(Edges$num_edges)*max(Cyanoabundances)
+p <- ggplot(dt_temp, aes(x=month_num, fill=factor(Cyano, level=c("noCyano","Cyano")), color=factor(Cyano, level=c("noCyano","Cyano")), group=factor(Cyano, level=c("noCyano","Cyano")))) + geom_bar() +
+  scale_fill_manual(values = c(noCyano="grey",Cyano=my_grid_col_adjusted["color","Cyanobacteria"])) + scale_color_manual(values = c(noCyano="grey",Cyano=my_grid_col_adjusted["color","Cyanobacteria"])) + 
+  xlab("Month") + ylim(c(0,max(Edges$num_edges))) + theme_classic() + theme(text = element_text(size = 12), legend.position = "none") +
+  geom_line(aes(x=month_num, y=CyanoAbundance/coeff), color="black") +
+  scale_y_continuous(name = "Number edges",  # Features of the first axis
+                     sec.axis = sec_axis(~.*coeff, name="Relative Abundance Cyanobacteria") # Add a second axis and specify its features
+                     )
+  
+p
+```
+
+Fraction of cyanobacteria
+```{r}
+p <- ggplot(dt_temp, aes(x=month_num, y=value, fill=factor(Cyano, level=c("noCyano","Cyano")), color=factor(Cyano, level=c("noCyano","Cyano")), group=factor(Cyano, level=c("noCyano","Cyano")))) +
+    geom_bar(position="fill", stat="identity") +
+    scale_fill_manual(values = c(noCyano="grey",Cyano=my_grid_col_adjusted["color","Cyanobacteria"])) + scale_color_manual(values = c(noCyano="grey",Cyano=my_grid_col_adjusted["color","Cyanobacteria"])) + 
+    xlab("Month") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p 
+```
+
+# association partners of Cyanobacteria
+```{r}
+Nodes <- data.frame(ASV=unique(c(as.character(NW$Source[which(NW$Source_Phylum=="Cyanobacteria")]),as.character(NW$Target[which(NW$Target_Phylum=="Cyanobacteria")]))))
+
+for(i in as.character(Nodes$ASV))
+{
+  Cyanoabundances_temp <- data.frame(Abund=as.numeric((Abund[which(Abund$ID==i),-1])), month_num=c(1:120))
+
+  dt_temp <- NW[which(NW$Source==i | NW$Target==i),]
+  levels(dt_temp$Source_Phylum) <- c(levels(dt_temp$Source_Phylum), "Alphaproteobacteria", "Deltaproteobacteria", "Gammaproteobacteria")
+  levels(dt_temp$Target_Phylum) <- c(levels(dt_temp$Target_Phylum), "Alphaproteobacteria", "Deltaproteobacteria", "Gammaproteobacteria")
+  dt_temp$Source_Phylum[which(dt_temp$Source_Phylum=="Proteobacteria")] <- as.character(dt_temp[which(dt_temp$Source_Phylum=="Proteobacteria"),"Source_Class"])
+  dt_temp$Target_Phylum[which(dt_temp$Target_Phylum=="Proteobacteria")] <- as.character(dt_temp[which(dt_temp$Target_Phylum=="Proteobacteria"),"Target_Class"])
+  dt_temp$CyanoAssPartner <- NA
+  dt_temp$CyanoAssPartner[which(dt_temp$Source==i)] <- as.character(dt_temp[which(dt_temp$Source==i),"Target_Phylum"])
+  dt_temp$CyanoAssPartnerDomain <- NA
+  dt_temp$CyanoAssPartnerDomain[which(dt_temp$Target==i)] <- substring(dt_temp[which(dt_temp$Target==i),"Source"],1,1)
+  dt_temp$CyanoAssPartnerDomain[which(dt_temp$Source==i)] <- substring(dt_temp[which(dt_temp$Source==i),"Target"],1,1)
+  dt_temp$CyanoAssPartner[which(dt_temp$Target==i)] <- as.character(dt_temp[which(dt_temp$Target==i),"Source_Phylum"])
+  dt_temp2 <- melt(dt_temp[,c(which(colnames(dt_temp)=="CyanoAssPartner"),grep("BL",colnames(dt_temp)))])
+  dt_temp2$month_num <- rep(c(1:120),each=dim(dt_temp)[1])
+  dt_temp2$CyanoAssPartner[which(dt_temp2$value==0)] <- "Z"
+
+  coeff <- 1/max(table(dt_temp2$variable), na.rm = TRUE)*max(Cyanoabundances_temp, na.rm = TRUE)
+  #asspartner_order <- rev(sort(unique(dt_temp2$CyanoAssPartner)))
+  asspartner_order <- c("Z",
+                        rev(sort(unique(as.character(dt_temp$CyanoAssPartner[which(dt_temp$CyanoAssPartnerDomain=="e")])))),
+                        rev(sort(unique(as.character(dt_temp$CyanoAssPartner[which(dt_temp$CyanoAssPartnerDomain=="b")])))))
+  
+  NUM_associations_bac <- length(which(dt_temp$CyanoAssPartnerDomain=="b"))
+  NUM_associations_euk <- length(which(dt_temp$CyanoAssPartnerDomain=="e"))
+  
+  p <- ggplot() + 
+              geom_bar(data=dt_temp2, aes(x=month_num,
+                            fill=factor(CyanoAssPartner,levels=asspartner_order),
+                            color=factor(CyanoAssPartner,levels=asspartner_order),
+                            group=factor(CyanoAssPartner,levels=asspartner_order))) + 
+              scale_fill_manual(values=my_grid_col_adjusted["color",dt_temp2$CyanoAssPartner]) + 
+              scale_color_manual(values=my_grid_col_adjusted["color",dt_temp2$CyanoAssPartner]) +
+              #xlab("Year") + 
+              labs(caption = paste( TAX[i,"Genus"], " (", i, ")", "\n",
+                           NUM_associations_bac, ": ",
+                           paste(substr(sort(unique(as.character(dt_temp$CyanoAssPartner[which(dt_temp$CyanoAssPartnerDomain=="b")]))),1,3), collapse = "; "), "\n",
+                           NUM_associations_euk, ": ",
+                           paste(substr(sort(unique(as.character(dt_temp$CyanoAssPartner[which(dt_temp$CyanoAssPartnerDomain=="e")]))),1,3), collapse = "; "), sep="") ) +
+              ylim(c(0,dim(dt_temp)[1])) + 
+              theme_classic() +
+              theme(text = element_text(size = 5, color = "black"),
+                    legend.position = "none",
+                    plot.title = element_text(size = 5),
+                    plot.subtitle = element_text(size = 5),
+                    axis.ticks = element_line(color = "black"),
+                    axis.text = element_text(color = "black"),
+                    axis.title.x = element_blank()) +
+              geom_line(data=Cyanoabundances_temp, aes(x=month_num, y=Abund/coeff), linetype = "dashed") +
+              scale_y_continuous(name = "Number edges",  # Features of the first axis
+                     sec.axis = sec_axis(~.*coeff, name="Sequence Abundance") # Add a second axis and specify its features
+                     ) +
+              scale_x_continuous(breaks = c(1, 13, 25, 37, 49, 61, 73, 85, 97, 109), labels = as.character(c(2004:2013))) +
+              geom_vline(xintercept=1, size = 0.2) +
+              geom_vline(xintercept=13, size = 0.2) +
+              geom_vline(xintercept=25, size = 0.2) +
+              geom_vline(xintercept=37, size = 0.2) +
+              geom_vline(xintercept=49, size = 0.2) +
+              geom_vline(xintercept=61, size = 0.2) +
+              geom_vline(xintercept=73, size = 0.2) +
+              geom_vline(xintercept=85, size = 0.2) +
+              geom_vline(xintercept=97, size = 0.2) +
+              geom_vline(xintercept=109, size = 0.2) +
+              geom_vline(xintercept=121, size = 0.2)
+  p
+  filename <- paste(PATH,"/6_Cyanobacteria/CyanoAssPartners_",i,"_Blackline_CyanoAbundance.pdf", sep="")
+  ggsave(filename, plot = p, width = 2.5, height = 1.5)
+}
+```
+
+Helper for network visualization
+```{r}
+Tax_cyano <- data.frame(ID=unique(c(as.character(NW$Source[which(NW$Source_Phylum=="Cyanobacteria" | NW$Target_Phylum=="Cyanobacteria")],
+                                                 NW$Target[which(NW$Source_Phylum=="Cyanobacteria" | NW$Target_Phylum=="Cyanobacteria")]))))
+Tax_cyano <- merge(Tax_cyano, TAX, by="ID", all.x=TRUE, all.y=FALSE)
+Tax_cyano$Phylum_Cyano <- Tax_cyano$Phylum
+levels(Tax_cyano$Phylum_Cyano) <- c(levels(Tax_cyano$Phylum_Cyano),
+                                    "Alphaproteobacteria", "Deltaproteobacteria", "Gammaproteobacteria",
+                                    unique(as.character(Tax_cyano[which(Tax_cyano$Phylum=="Cyanobacteria"),"Genus"])))
+Tax_cyano$Phylum_Cyano[which(Tax_cyano$Phylum=="Cyanobacteria")] <- as.character(Tax_cyano[which(Tax_cyano$Phylum=="Cyanobacteria"),"Genus"])
+Tax_cyano$Phylum_Cyano[which(Tax_cyano$Phylum=="Proteobacteria")] <- as.character(Tax_cyano[which(Tax_cyano$Phylum=="Proteobacteria"),"Class"])
+Tax_cyano$nodesize <- 1
+write.table(Tax_cyano,
+            paste(PATH,"/6_Cyanobacteria/Tax_cyano_assPartners.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, quote = FALSE, sep = "\t")
+
+NW$edgesize <- 0
+NW$edgesize[which(NW$Source_Phylum=="Cyanobacteria"|NW$Target_Phylum=="Cyanobacteria")] <- 1
+write.table(NW[,c("Source","Target","edgesize")],
+            paste(PATH,"/6_Cyanobacteria/EdgeSize_cyano_assPartners.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, quote = FALSE, sep = "\t")
+
+sort(unique(as.character(Tax_cyano$Phylum_Cyano)))
+```
+
+Number and fraction of Cyanobacteria
+```{r}
+for(i in colnames(NW)[which(substr(colnames(NW),1,4)=="BL06"|substr(colnames(NW),1,4)=="BL11")])
+{
+  print(paste(i,": ",sum(NW[,i]), " edges and ", sum(NW[which(NW$edgesize==1),i]), " (",
+              sum(NW[which(NW$edgesize==1),i])/sum(NW[,i])*100, "%) cyano edges", sep = ""))
+}
+```
+
+[1] "BL0601: 12546 edges and 339 (2.70205643232903%) cyano edges"
+[1] "BL0602: 9293 edges and 157 (1.68944366727644%) cyano edges"
+[1] "BL0603: 10061 edges and 106 (1.0535732034589%) cyano edges"
+[1] "BL0604: 538 edges and 10 (1.85873605947955%) cyano edges"
+[1] "BL0605: 746 edges and 96 (12.8686327077748%) cyano edges"
+[1] "BL0606: 1842 edges and 233 (12.6492942453854%) cyano edges"
+[1] "BL0607: 1375 edges and 179 (13.0181818181818%) cyano edges"
+[1] "BL0608: 1448 edges and 272 (18.7845303867403%) cyano edges"
+[1] "BL0609: 1720 edges and 323 (18.7790697674419%) cyano edges"
+[1] "BL0610: 3242 edges and 411 (12.6773596545342%) cyano edges"
+[1] "BL0611: 4070 edges and 377 (9.26289926289926%) cyano edges"
+[1] "BL0612: 9446 edges and 476 (5.03917001905569%) cyano edges"
+[1] "BL1101: 13502 edges and 512 (3.79203081025033%) cyano edges"
+[1] "BL1102: 14374 edges and 484 (3.36719076109642%) cyano edges"
+[1] "BL1103: 12926 edges and 284 (2.19712207952963%) cyano edges"
+[1] "BL1104: 5364 edges and 309 (5.76062639821029%) cyano edges"
+[1] "BL1105: 3026 edges and 365 (12.0621282220753%) cyano edges"
+[1] "BL1106: 2675 edges and 363 (13.5700934579439%) cyano edges"
+[1] "BL1107: 2397 edges and 375 (15.6445556946183%) cyano edges"
+[1] "BL1108: 2263 edges and 360 (15.9080866106938%) cyano edges"
+[1] "BL1109: 2471 edges and 414 (16.7543504653986%) cyano edges"
+[1] "BL1110: 4017 edges and 455 (11.3268608414239%) cyano edges"
+[1] "BL1111: 10883 edges and 593 (5.44886520260957%) cyano edges"
+[1] "BL1112: 14042 edges and 593 (4.22304515026349%) cyano edges"
+
+in static network
+```{r}
+print(paste("static network: ", dim(NW)[1], " edges and ", sum(NW$edgesize==1), " (",
+              sum(NW$edgesize==1)/dim(NW)[1]*100, "%) cyano edges", sep = ""))
+```
+[1] "static network: 16626 edges and 661 (3.97570070973175%) cyano edges"
+
+Cyanobium association partners
+```{r}
+dt_Cyanobium <- rbind(NW[grep("Cyanobium",NW$Target_Genus),-grep("BL",colnames(NW))], NW[grep("Cyanobium",NW$Source_Genus),-grep("BL",colnames(NW))])
+dim(dt_Cyanobium)
+t(dt_Cyanobium[which(dt_Cyanobium$Source_Class=="Deltaproteobacteria" | dt_Cyanobium$Target_Class=="Deltaproteobacteria"),])
+t(Abund[which(Abund$ID=="bn_ASV_000256"),])
+t(Abund[which(Abund$ID=="bn_ASV_000020"),])
+```
+            Source        Target       LS Xs Len MutualInformation percentage_co_occurrence intersection union         J  Source_Phylum  Target_Phylum        Source_Class        Target_Class
+3657 bn_ASV_000256 bn_ASV_000020 0.486994  3 101          0.439285                 59.00000           59   100 0.5900000 Proteobacteria  Cyanobacteria Deltaproteobacteria    Oxyphotobacteria
+3663 bn_ASV_000256 bn_ASV_000141 0.534699  3 114          0.420653                 59.45946           44    74 0.5945946 Proteobacteria  Cyanobacteria Deltaproteobacteria    Oxyphotobacteria
+2199 bn_ASV_000141 bn_ASV_000393 0.503392  1 116          0.421917                 57.14286           32    56 0.5714286  Cyanobacteria Proteobacteria    Oxyphotobacteria Deltaproteobacteria
+                   Source_Genus               Target_Genus Cyano edgesize
+3657 Deltaproteobacteria_SAR324         Cyanobium_PCC-6307 Cyano        1
+3663 Deltaproteobacteria_SAR324         Cyanobium_PCC-6307 Cyano        1
+2199         Cyanobium_PCC-6307 Deltaproteobacteria_SAR324 Cyano        1
+
+Prochlorococcus
+```{r}
+Pro_ASV <- as.character(Nodes[which(Nodes$Genus=="Prochlorococcus_MIT9313"),"ID"])
+
+Pro_1 <- NW[which(NW$Source==Pro_ASV[1]|NW$Target==Pro_ASV[1]),]
+plot(x=rep(c(1:12),10),y=colSums(Pro_1[,grep("BL",colnames(Pro))]), pch=19)
+
+Pro_2 <- NW[which(NW$Source==Pro_ASV[2]|NW$Target==Pro_ASV[2]),]
+plot(x=rep(c(1:12),10),y=colSums(Pro_2[,grep("BL",colnames(Pro))]), pch=19)
+
+Pro_3 <- NW[which(NW$Source==Pro_ASV[3]|NW$Target==Pro_ASV[3]),]
+plot(x=rep(c(1:12),10),y=colSums(Pro_3[,grep("BL",colnames(Pro))]), pch=19)
+
+Pro_4 <- NW[which(NW$Source==Pro_ASV[4]|NW$Target==Pro_ASV[4]),]
+plot(x=rep(c(1:12),10),y=colSums(Pro_4[,grep("BL",colnames(Pro))]), pch=19)
+```
+
+Synechococcus
+```{r}
+Syn_ASV <- as.character(Nodes[which(Nodes$Genus=="Synechococcus_CC9902"),"ID"])
+
+Syn_1 <- NW[which(NW$Source==Syn_ASV[1]|NW$Target==Syn_ASV[1]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_1[,grep("BL",colnames(Syn_1))]), pch=19)
+
+Syn_2 <- NW[which(NW$Source==Syn_ASV[2]|NW$Target==Syn_ASV[2]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_2[,grep("BL",colnames(Syn_2))]), pch=19)
+
+Syn_3 <- NW[which(NW$Source==Syn_ASV[3]|NW$Target==Syn_ASV[3]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_3[,grep("BL",colnames(Syn_3))]), pch=19)
+
+Syn_4 <- NW[which(NW$Source==Syn_ASV[4]|NW$Target==Syn_ASV[4]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_4[,grep("BL",colnames(Syn_4))]), pch=19)
+
+Syn_5 <- NW[which(NW$Source==Syn_ASV[5]|NW$Target==Syn_ASV[5]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_5[,grep("BL",colnames(Syn_5))]), pch=19)
+
+Syn_6 <- NW[which(NW$Source==Syn_ASV[6]|NW$Target==Syn_ASV[6]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_6[,grep("BL",colnames(Syn_6))]), pch=19)
+
+Syn_7 <- NW[which(NW$Source==Syn_ASV[7]|NW$Target==Syn_ASV[7]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_7[,grep("BL",colnames(Syn_7))]), pch=19)
+
+Syn_8 <- NW[which(NW$Source==Syn_ASV[8]|NW$Target==Syn_ASV[8]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_8[,grep("BL",colnames(Syn_8))]), pch=19)
+
+Syn_9 <- NW[which(NW$Source==Syn_ASV[9]|NW$Target==Syn_ASV[9]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_9[,grep("BL",colnames(Syn_9))]), pch=19)
+
+Syn_10 <- NW[which(NW$Source==Syn_ASV[10]|NW$Target==Syn_ASV[10]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_10[,grep("BL",colnames(Syn_10))]), pch=19)
+
+Syn_11 <- NW[which(NW$Source==Syn_ASV[11]|NW$Target==Syn_ASV[11]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_11[,grep("BL",colnames(Syn_11))]), pch=19)
+
+Syn_12 <- NW[which(NW$Source==Syn_ASV[12]|NW$Target==Syn_ASV[12]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_12[,grep("BL",colnames(Syn_12))]), pch=19)
+
+Syn_13 <- NW[which(NW$Source==Syn_ASV[13]|NW$Target==Syn_ASV[13]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_13[,grep("BL",colnames(Syn_13))]), pch=19)
+
+Syn_14 <- NW[which(NW$Source==Syn_ASV[14]|NW$Target==Syn_ASV[14]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_14[,grep("BL",colnames(Syn_14))]), pch=19)
+
+Syn_15 <- NW[which(NW$Source==Syn_ASV[15]|NW$Target==Syn_ASV[15]),]
+plot(x=rep(c(1:12),10),y=colSums(Syn_15[,grep("BL",colnames(Syn_15))]), pch=19)
+```
+
+## number associations to Euk and other Bac
+```{r}
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+Nodes <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.tsv",sep=""), header = TRUE)
+Cyano <- NW[,c("Source","Target")]
+Cyano <- merge(Cyano, Nodes, by.x="Source", by.y="ID", all.x=TRUE, all.y=FALSE)
+colnames(Cyano)[-c(1,2)] <- paste("Source",colnames(Cyano)[-c(1,2)],sep="_")
+Cyano <- merge(Cyano, Nodes, by.x="Target", by.y="ID", all.x=TRUE, all.y=FALSE)
+colnames(Cyano)[c(12:20)] <- paste("Target",colnames(Cyano)[c(12:20)],sep="_")
+Cyano <- Cyano[which(Cyano$Source_Phylum=="Cyanobacteria" |
+                     Cyano$Target_Phylum=="Cyanobacteria"),]
+
+myCyano <- Cyano
+unique(as.character(myCyano$Source_Class[which(myCyano$Source_Phylum=="Proteobacteria")] ))
+levels(myCyano$Source_Phylum) <- c(levels(myCyano$Source_Phylum), unique(as.character(myCyano$Source_Class[which(myCyano$Source_Phylum=="Proteobacteria")] )))
+levels(myCyano$Target_Phylum) <- c(levels(myCyano$Target_Phylum), unique(as.character(myCyano$Target_Class[which(myCyano$Target_Phylum=="Proteobacteria")] )))
+myCyano$Source_Phylum[which(myCyano$Source_Phylum=="Proteobacteria")] <- as.character(myCyano$Source_Class[which(myCyano$Source_Phylum=="Proteobacteria")] )
+myCyano$Target_Phylum[which(myCyano$Target_Phylum=="Proteobacteria")] <- as.character(myCyano$Target_Class[which(myCyano$Target_Phylum=="Proteobacteria")] )
+
+myCyano$Domain <- paste(substr(myCyano$Source,1,1),substr(myCyano$Target,1,1),sep="")
+table(myCyano$Domain)
+length(which(myCyano$Source_Phylum=="Cyanobacteria" | myCyano$Target_Phylum=="Cyanobacteria"))
+length(which(myCyano$Source_Phylum=="Cyanobacteria" & myCyano$Target_Phylum=="Cyanobacteria"))
+length(which(myCyano$Source_Phylum!="Cyanobacteria" | myCyano$Target_Phylum!="Cyanobacteria"))
+table(myCyano$Source_Phylum)
+table(c(as.character(myCyano$Source_Phylum[which(myCyano$Domain=="eb")]),
+        as.character(myCyano$Target_Phylum[which(myCyano$Domain=="be")])))
+sort(myCyano$LS[which(myCyano$Source_Phylum=="Cyanobacteria" & myCyano$Target_Phylum=="Cyanobacteria")])
+
+dt_temp <- as.data.frame(table(c(as.character(myCyano$Source_Phylum), as.character(myCyano$Target_Phylum))))
+sort(table(c(as.character(myCyano$Source_Phylum), as.character(myCyano$Target_Phylum))))
+
+myCyano <- merge(myCyano, NW[,c("Source","Target","LS")], by=c("Source","Target"), all.x=TRUE, all.y=FALSE)
+myCyano_only <- myCyano[which(myCyano$Source_Phylum=="Cyanobacteria" & myCyano$Target_Phylum=="Cyanobacteria"),]
+```
+
+## BLAST
+Prepare sequence table for BLAST
+```{r}
+ABUND <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+ABUND$help <- 1
+TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.tsv",sep=""), header = TRUE)
+SEQ <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Sequence.txt",sep=""), header = TRUE)
+
+dt <- TAX[which(TAX$Phylum=="Cyanobacteria"),]
+dt <- merge(dt, ABUND[,c("ID","help")], by="ID", all.x=TRUE, all.y=FALSE)
+dt <- dt[which(dt$help==1),]
+dt$help <- NULL
+dt$ASV <- gsub("bn_","",gsub("bp_","",dt$ID))
+dt$sizefraction <- substr(dt$ID,2,2)
+unique(dt$ASV)
+table(dt[,c("ASV","sizefraction")])
+table(dt$sizefraction)
+
+dt <- merge(dt, SEQ, by.x="ID", by.y="ASVNAME", all.x=TRUE, all.y=FALSE)
+head(dt)
+
+# install.packages("seqRFLP")
+library("seqRFLP")
+dt_temp <- unique(dt[,c("ASV","Ref_seq")])
+dt.fasta <- dataframe2fas(dt_temp, file = paste(PATH,"/6_Cyanobacteria/Cyanobacteria.fasta",sep=""))
+```
+
+Reading in Blast result and keeping only 100%
+```{r}
+dtBlast <- read.table(paste(PATH,"/6_Cyanobacteria/Blast_Cyanorak_v2/sequenceserver-std_tsv_report-2.tsv",sep=""), header = FALSE)
+head(dtBlast)
+colnames(dtBlast) <- c("query_id", "subject_id", "identity_percentage", "alignment_length", "mismatches", "gapopens", "q_start", "q_end", "s_start", "s_end", "evalue", "bit_score")
+table(dtBlast$query_id[which(dtBlast$identity_percentage==100)])
+sort(table(dtBlast$subject_id[which(dtBlast$identity_percentage==100)]))
+length(which(table(dtBlast$subject_id[which(dtBlast$identity_percentage==100)])>0))
+dtBlast$name <- NA
+dtBlast$Clade <- NA
+dtBlast$SubClade <- NA
+dtBlast$Pigment_Type <- NA
+for(i in c(1:dim(dtBlast)[1]))
+{
+  v <- strsplit(as.character(dtBlast$subject_id[i]), split = "_")[[1]]
+  dtBlast$name[i] <- v[3]
+  dtBlast$Clade[i] <- v[5]
+  dtBlast$SubClade[i] <- v[6]
+  dtBlast$Pigment_Type[i] <- v[7]
+}
+```
+
+how many different sequences?
+```{r}
+table(paste(dtBlast$name, dtBlast$Clade, dtBlast$SubClade))
+length(table(paste(dtBlast$name, dtBlast$Clade, dtBlast$SubClade)))
+summary(dtBlast$identity_percentage)
+```
+
+100%
+```{r}
+dt_100percent <- dtBlast[which(dtBlast$identity_percentage==100),]
+table(paste(dt_100percent$name, dt_100percent$Clade, dt_100percent$SubClade))
+length(table(paste(dt_100percent$name, dt_100percent$Clade, dt_100percent$SubClade)))
+summary(dt_100percent$identity_percentage)
+```
+
+```{r}
+dt_temp <- dt_100percent[which(dt_100percent$query_id=="ASV_000001"),]
+length(table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade)))
+table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade))
+```
+
+```{r}
+dt_temp <- dt_100percent[which(dt_100percent$query_id=="ASV_000005"),]
+length(table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade)))
+table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade))
+```
+
+```{r}
+dt_temp <- dt_100percent[which(dt_100percent$query_id=="ASV_000018"),]
+length(table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade)))
+table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade))
+```
+
+```{r}
+dt_temp <- dt_100percent[which(dt_100percent$query_id=="ASV_000020"),]
+length(table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade)))
+table(paste(dt_temp$name, dt_temp$Clade, dt_temp$SubClade))
+```
+
+```{r}
+summary(dt_100percent$gapopens)
+```

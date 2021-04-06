@@ -1,0 +1,335 @@
+---
+title: "AnalysisWithTaxonomicClassifications"
+author: "Ina Maria Deutschmann"
+date: "4/6/2020"
+output: html_document
+---
+
+# Analysis with taxonomic classifications
+set path
+```{r}
+PATH <- "~/Dropbox/DATA/Project_DynNW_2021_March/Github"
+```
+
+Prerquisites and data
+```{r}
+library(reshape)
+library(ggplot2)
+library(RColorBrewer)
+library(circlize)
+library(tidyr)
+
+TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.tsv",sep=""), header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+rownames(TAX) <- TAX$ID
+NW <- read.table(paste(PATH,"/3_NetworkProperties/AssociationPrevalence.tsv",sep=""), header = TRUE, stringsAsFactors = FALSE)
+NW$Source_Phylum <- TAX[as.character(NW$Source),"Phylum"]
+NW$Target_Phylum <- TAX[as.character(NW$Target),"Phylum"]
+NW$Source_Phylum[which(NW$Source_Phylum=="Proteobacteria")] <- TAX[as.character(NW$Source[which(NW$Source_Phylum=="Proteobacteria")]),"Class"]
+NW$Target_Phylum[which(NW$Target_Phylum=="Proteobacteria")] <- TAX[as.character(NW$Target[which(NW$Target_Phylum=="Proteobacteria")]),"Class"]
+Phylum_IDs <- unique(c(as.character(NW$Source_Phylum), as.character(NW$Target_Phylum)))
+NW$Source_Class <- TAX[as.character(NW$Source),"Class"]
+NW$Target_Class <- TAX[as.character(NW$Target),"Class"]
+NW$Source_Order <- TAX[as.character(NW$Source),"Order"]
+NW$Target_Order <- TAX[as.character(NW$Target),"Order"]
+NW$Source_Family <- TAX[as.character(NW$Source),"Family"]
+NW$Target_Family <- TAX[as.character(NW$Target),"Family"]
+NW$Source_Genus <- TAX[as.character(NW$Source),"Genus"]
+NW$Target_Genus <- TAX[as.character(NW$Target),"Genus"]
+Genus_IDs <- unique(c(as.character(NW$Source_Genus), as.character(NW$Target_Genus)))
+
+colIDs <- c("ID", "avg_abundance_sum", "Size_fraction",
+            "Kingdom", "Supergroup", "Phylum", "Class",
+            "Order", "Family", "Genus", "Genus_revised_for_PIDA", "Species")
+
+my_grid_col <- as.data.frame(colorRampPalette(brewer.pal(8, "Set2"))(length(Phylum_IDs)))
+rownames(my_grid_col) <- Phylum_IDs
+colnames(my_grid_col) <- "color"
+my_grid_col <- t(my_grid_col)
+
+my_grid_col_Genus <- as.data.frame(colorRampPalette(brewer.pal(8, "Set2"))(length(Genus_IDs)))
+rownames(my_grid_col_Genus) <- Genus_IDs
+colnames(my_grid_col_Genus) <- "color"
+my_grid_col_Genus <- t(my_grid_col_Genus)
+```
+
+## Circular Visualization
+https://jokergoo.github.io/circlize_book/book/
+https://stackoverflow.com/questions/31943102/rotate-labels-in-a-chorddiagram-r-circlize
+
+Top prevalent associations
+```{r}
+THRESHOLD <- 90
+dt_Top  <- as.data.frame(rbind(t(combn(Phylum_IDs,2)), cbind(Phylum_IDs, Phylum_IDs)))
+colnames(dt_Top) <- c("Source_Phylum","Target_Phylum")
+
+# Prevalence (>=90%)
+E <- NW[which(NW$prevalence_fractionMonths>=THRESHOLD),c("Source_Phylum", "Target_Phylum")]
+dt_Top[,"Prevalence"] <- 0
+for(i in c(1:dim(dt_Top)[1]))
+{
+  dt_Top[i,"Prevalence"] <- length(which((E$Source_Phylum==dt_Top$Source_Phylum[i] & E$Target_Phylum==dt_Top$Target_Phylum[i])|
+                                            (E$Target_Phylum==dt_Top$Source_Phylum[i] & E$Source_Phylum==dt_Top$Target_Phylum[i])))
+}
+# Prevalence (71>x>90)
+E <- NW[which(NW$prevalence_fractionMonths>71 & NW$prevalence_fractionMonths<THRESHOLD),c("Source_Phylum", "Target_Phylum")]
+dt_Top[,"Prevalence_71_90"] <- 0
+for(i in c(1:dim(dt_Top)[1]))
+{
+  dt_Top[i,"Prevalence_71_90"] <- length(which((E$Source_Phylum==dt_Top$Source_Phylum[i] & E$Target_Phylum==dt_Top$Target_Phylum[i])|
+                                                  (E$Target_Phylum==dt_Top$Source_Phylum[i] & E$Source_Phylum==dt_Top$Target_Phylum[i])))
+}
+# monthly prevalence (unique -> not considering associations appearing at least in one other month 90%)
+for(m in colnames(NW)[grep("Month_",colnames(NW))])
+{
+  E <- NW[which(NW[,m]>=THRESHOLD & rowSums(1*(NW[,grep("Month_",colnames(NW))]>=THRESHOLD))==1),c("Source_Phylum", "Target_Phylum")]
+  dt_Top[,m] <- 0
+  for(i in c(1:dim(dt_Top)[1]))
+  {
+    dt_Top[i,m] <- length(which((E$Source_Phylum==dt_Top$Source_Phylum[i] & E$Target_Phylum==dt_Top$Target_Phylum[i])|
+                                   (E$Target_Phylum==dt_Top$Source_Phylum[i] & E$Source_Phylum==dt_Top$Target_Phylum[i])))
+  }
+}
+head(dt_Top)
+```
+
+Circular Plot
+```{r}
+my_grid_col_adjusted <- as.data.frame(colorRampPalette(brewer.pal(8, "Set2"))(length(Phylum_IDs)))
+rownames(my_grid_col_adjusted) <- Phylum_IDs
+colnames(my_grid_col_adjusted) <- "color"
+my_grid_col_adjusted <- t(my_grid_col_adjusted)
+sort(substr(colnames(my_grid_col_adjusted),1,5))
+sort(colnames(my_grid_col_adjusted))
+
+my_grid_col_adjusted["color",sort(colnames(my_grid_col_adjusted))]
+barplot(rep(10,28), col = my_grid_col_adjusted["color",sort(colnames(my_grid_col_adjusted))])
+barplot(rep(10,28), col = my_grid_col_adjusted["color",])
+
+myorderSections <- sort(unique(c(paste(substr(NW$Source,1,1),as.character(NW$Source_Phylum),sep="__"), paste(substr(NW$Target,1,1),as.character(NW$Target_Phylum), sep="__"))))
+myorderSections <- gsub("b__","",gsub("e__","",myorderSections))
+
+mygridcolIDs <- Phylum_IDs
+  
+# Circular Plot
+  ## Initialize the layout
+  #circos.initialize(factor=unique(N$Phylum), xlim=c(0,length(unique(N$Phylum))))
+  myE <- dt_Top[which(dt_Top$Prevalence>0),c("Source_Phylum", "Target_Phylum","Prevalence")]
+  pdf(file=paste(PATH,"/5_AnalysisWithTaxonomicClassifications/Top_Prevalence_90_100.pdf",sep=""))
+  circos.par(gap.after = 5)
+
+  #chordDiagram(myE, grid.col=my_grid_col["color",as.character(myE$Source_Phylum)], col=my_grid_col["color",as.character(myE$Source_Phylum)])
+  
+  # now, the image with rotated labels
+  chordDiagram(myE, order = myorderSections, annotationTrack = "grid", preAllocateTracks = 2, col=my_grid_col_adjusted["color",as.character(myE$Source_Phylum)], grid.col = my_grid_col_adjusted["color",mygridcolIDs])
+  circos.trackPlotRegion(track.index = 2, panel.fun = function(x, y) {
+      xlim = get.cell.meta.data("xlim")
+      ylim = get.cell.meta.data("ylim")
+      sector.name = get.cell.meta.data("sector.index")
+      circos.text(mean(xlim), ylim[1] + .1, substr(sector.name,1,5), facing = "clockwise", niceFacing = TRUE, adj = c(-0.1, 0.5))
+      #circos.axis(h = "top", labels.cex = 0.5, major.tick.percentage = 0.2, sector.index = sector.name, track.index = 2)
+  }, bg.border = NA)
+  
+    dev.off()
+  # clear
+  circos.clear()
+  
+# monthly prevalence (unique)
+for(m in colnames(dt_Top)[grep("Month_",colnames(dt_Top))])
+{
+  # Circular Plot
+  ## Initialize the layout
+  #circos.initialize(factor=unique(N$Phylum), xlim=c(0,length(unique(N$Phylum))))
+  myE <- dt_Top[which(dt_Top[,m]>0),c("Source_Phylum", "Target_Phylum",m)]
+  pdf(file=paste(PATH,"/5_AnalysisWithTaxonomicClassifications/Top_Prevalence_",m,".pdf",sep=""))
+  circos.par(gap.after = 5)
+
+  #chordDiagram(myE, grid.col=my_grid_col["color",as.character(myE$Source_Phylum)], col=my_grid_col["color",as.character(myE$Source_Phylum)])
+  
+  # now, the image with rotated labels
+  chordDiagram(myE, order = myorderSections, annotationTrack = "grid", preAllocateTracks = 2, col=my_grid_col_adjusted["color",as.character(myE$Source_Phylum)], grid.col = my_grid_col_adjusted["color",mygridcolIDs])
+  circos.trackPlotRegion(track.index = 2, panel.fun = function(x, y) {
+      xlim = get.cell.meta.data("xlim")
+      ylim = get.cell.meta.data("ylim")
+      sector.name = get.cell.meta.data("sector.index")
+      circos.text(mean(xlim), ylim[1] + .1, substr(sector.name,1,5), facing = "clockwise", niceFacing = TRUE, adj = c(-0.1, 0.5))
+      #circos.axis(h = "top", labels.cex = 0.5, major.tick.percentage = 0.2, sector.index = sector.name, track.index = 2)
+  }, bg.border = NA)
+  
+    dev.off()
+  # clear
+  circos.clear()
+}
+```
+
+all monthly associations (above >=90%)
+```{r}
+THRESHOLD <- 90
+dt_Top  <- as.data.frame(rbind(t(combn(Phylum_IDs,2)), cbind(Phylum_IDs, Phylum_IDs)))
+colnames(dt_Top) <- c("Source_Phylum","Target_Phylum")
+
+# Prevalence (>=90%)
+E <- NW[which(NW$prevalence_fractionMonths>=THRESHOLD),c("Source_Phylum", "Target_Phylum")]
+dt_Top[,"Prevalence"] <- 0
+for(i in c(1:dim(dt_Top)[1]))
+{
+  dt_Top[i,"Prevalence"] <- length(which((E$Source_Phylum==dt_Top$Source_Phylum[i] & E$Target_Phylum==dt_Top$Target_Phylum[i])|
+                                            (E$Target_Phylum==dt_Top$Source_Phylum[i] & E$Source_Phylum==dt_Top$Target_Phylum[i])))
+}
+# Prevalence (71>x>90)
+E <- NW[which(NW$prevalence_fractionMonths>71 & NW$prevalence_fractionMonths<THRESHOLD),c("Source_Phylum", "Target_Phylum")]
+dt_Top[,"Prevalence_71_90"] <- 0
+for(i in c(1:dim(dt_Top)[1]))
+{
+  dt_Top[i,"Prevalence_71_90"] <- length(which((E$Source_Phylum==dt_Top$Source_Phylum[i] & E$Target_Phylum==dt_Top$Target_Phylum[i])|
+                                                  (E$Target_Phylum==dt_Top$Source_Phylum[i] & E$Source_Phylum==dt_Top$Target_Phylum[i])))
+}
+# monthly prevalence
+for(m in colnames(NW)[grep("Month_",colnames(NW))])
+{
+  E <- NW[which(NW[,m]>=THRESHOLD),c("Source_Phylum", "Target_Phylum")]
+  dt_Top[,m] <- 0
+  for(i in c(1:dim(dt_Top)[1]))
+  {
+    dt_Top[i,m] <- length(which((E$Source_Phylum==dt_Top$Source_Phylum[i] & E$Target_Phylum==dt_Top$Target_Phylum[i])|
+                                   (E$Target_Phylum==dt_Top$Source_Phylum[i] & E$Source_Phylum==dt_Top$Target_Phylum[i])))
+  }
+}
+
+my_grid_col_adjusted <- as.data.frame(colorRampPalette(brewer.pal(8, "Set2"))(length(Phylum_IDs)))
+rownames(my_grid_col_adjusted) <- Phylum_IDs
+colnames(my_grid_col_adjusted) <- "color"
+my_grid_col_adjusted <- t(my_grid_col_adjusted)
+sort(substr(colnames(my_grid_col_adjusted),1,5))
+sort(colnames(my_grid_col_adjusted))
+
+my_grid_col_adjusted["color",sort(colnames(my_grid_col_adjusted))]
+barplot(rep(10,28), col = my_grid_col_adjusted["color",sort(colnames(my_grid_col_adjusted))])
+barplot(rep(10,28), col = my_grid_col_adjusted["color",])
+
+myorderSections <- sort(unique(c(paste(substr(NW$Source,1,1),as.character(NW$Source_Phylum),sep="__"), paste(substr(NW$Target,1,1),as.character(NW$Target_Phylum), sep="__"))))
+myorderSections <- gsub("b__","",gsub("e__","",myorderSections))
+
+mygridcolIDs <- Phylum_IDs
+  
+# all >=90
+# Circular Plot
+  ## Initialize the layout
+  #circos.initialize(factor=unique(N$Phylum), xlim=c(0,length(unique(N$Phylum))))
+  myE <- dt_Top[which(dt_Top$Prevalence>0),c("Source_Phylum", "Target_Phylum","Prevalence")]
+  pdf(file=paste(PATH,"/5_AnalysisWithTaxonomicClassifications/Top_Prevalence_90_100.pdf",sep=""))
+  circos.par(gap.after = 5)
+
+  #chordDiagram(myE, grid.col=my_grid_col["color",as.character(myE$Source_Phylum)], col=my_grid_col["color",as.character(myE$Source_Phylum)])
+  
+  # now, the image with rotated labels
+  chordDiagram(myE, order = myorderSections, annotationTrack = "grid", preAllocateTracks = 2, col=my_grid_col_adjusted["color",as.character(myE$Source_Phylum)], grid.col = my_grid_col_adjusted["color",mygridcolIDs])
+  circos.trackPlotRegion(track.index = 2, panel.fun = function(x, y) {
+      xlim = get.cell.meta.data("xlim")
+      ylim = get.cell.meta.data("ylim")
+      sector.name = get.cell.meta.data("sector.index")
+      circos.text(mean(xlim), ylim[1] + .1, substr(sector.name,1,5), facing = "clockwise", niceFacing = TRUE, adj = c(-0.1, 0.5))
+      #circos.axis(h = "top", labels.cex = 0.5, major.tick.percentage = 0.2, sector.index = sector.name, track.index = 2)
+  }, bg.border = NA)
+  
+    dev.off()
+  # clear
+  circos.clear()
+
+# monthly prevalence (all)
+for(m in colnames(dt_Top)[grep("Month_",colnames(dt_Top))])
+{
+  # Circular Plot
+  ## Initialize the layout
+  #circos.initialize(factor=unique(N$Phylum), xlim=c(0,length(unique(N$Phylum))))
+  myE <- dt_Top[which(dt_Top[,m]>0),c("Source_Phylum", "Target_Phylum",m)]
+  pdf(file=paste(PATH,"/5_AnalysisWithTaxonomicClassifications/Top_Prevalence_90_",m,".pdf",sep=""))
+  circos.par(gap.after = 5)
+
+  #chordDiagram(myE, grid.col=my_grid_col["color",as.character(myE$Source_Phylum)], col=my_grid_col["color",as.character(myE$Source_Phylum)])
+  
+  # now, the image with rotated labels
+  chordDiagram(myE, order = myorderSections, annotationTrack = "grid", preAllocateTracks = 2, col=my_grid_col_adjusted["color",as.character(myE$Source_Phylum)], grid.col = my_grid_col_adjusted["color",mygridcolIDs])
+  circos.trackPlotRegion(track.index = 2, panel.fun = function(x, y) {
+      xlim = get.cell.meta.data("xlim")
+      ylim = get.cell.meta.data("ylim")
+      sector.name = get.cell.meta.data("sector.index")
+      circos.text(mean(xlim), ylim[1] + .1, substr(sector.name,1,5), facing = "clockwise", niceFacing = TRUE, adj = c(-0.1, 0.5))
+      #circos.axis(h = "top", labels.cex = 0.5, major.tick.percentage = 0.2, sector.index = sector.name, track.index = 2)
+  }, bg.border = NA)
+  
+    dev.off()
+  # clear
+  circos.clear()
+}
+```
+
+## Prevalence and taxonomical relatedness
+```{r}
+dt_temp <- NW
+dt_temp$sameDomain <- 0
+dt_temp$sameDomain[which(substr(dt_temp$Source,1,1)==substr(dt_temp$Target,1,1))] <- 1
+dt_temp$samePhylum <- 0
+dt_temp$samePhylum[which(dt_temp$Source_Phylum==dt_temp$Target_Phylum)] <- 1
+dt_temp$sameClass <- 0
+dt_temp$sameClass[which(dt_temp$Source_Class==dt_temp$Target_Class)] <- 1
+dt_temp$sameOrder <- 0
+dt_temp$sameOrder[which(dt_temp$Source_Order==dt_temp$Target_Order)] <- 1
+dt_temp$sameFamily <- 0
+dt_temp$sameFamily[which(dt_temp$Source_Family==dt_temp$Target_Family)] <- 1
+colnames(dt_temp)
+dt_temp$ID <- paste(dt_temp$Matchsizefraction,dt_temp$MatchDomain,sep="_")
+dt_temp2 <- cbind(dt_temp[which(dt_temp$sameDomain==0),c("ID","prevalence_fractionMonths")])
+dt_temp2$type <- "Bac-Euk"
+dt_temp2 <- rbind(dt_temp2, cbind(dt_temp[which(dt_temp$sameDomain==1),c("ID","prevalence_fractionMonths")],type="Domain"))
+dt_temp2 <- rbind(dt_temp2, cbind(dt_temp[which(dt_temp$samePhylum==1),c("ID","prevalence_fractionMonths")],type="Phylum"))
+dt_temp2 <- rbind(dt_temp2, cbind(dt_temp[which(dt_temp$sameClass==1),c("ID","prevalence_fractionMonths")],type="Class"))
+dt_temp2 <- rbind(dt_temp2, cbind(dt_temp[which(dt_temp$sameOrder==1),c("ID","prevalence_fractionMonths")],type="Order"))
+dt_temp2 <- rbind(dt_temp2, cbind(dt_temp[which(dt_temp$sameFamily==1),c("ID","prevalence_fractionMonths")],type="Family"))
+table(dt_temp2$type)
+head(dt_temp2)
+dt_temp2$sizefraction <- substr(dt_temp2$ID,1,2)
+dt_temp2$MatchDomain <- substr(dt_temp2$ID,4,5)
+p <- ggplot(dt_temp2, aes(y=prevalence_fractionMonths, x=factor(type,levels=c("Bac-Euk","Domain","Phylum","Class","Order","Family")))) + 
+       geom_boxplot(outlier.colour="black", outlier.shape=16, outlier.size=0.5, notch=FALSE) +
+       stat_summary(fun.data=mean_sdl, fun.args = list(mult=1), geom="errorbar", color="red", width=0.2) +
+       stat_summary(fun.y=mean, geom="point", color="red") +
+       theme_classic() +
+       theme(text = element_text(size = 12), axis.text = element_text(color = "black"), axis.ticks = element_line(colour = "black")) +
+       xlab("domain and taxonomical relatedness") +
+       ylab("association prevalence") +
+       facet_grid(sizefraction~MatchDomain)
+p
+```
+Bac-Euk   Class  Domain  Family   Genus   Order  Phylum 
+   6354    2707   10272     897     698    1198    2996 
+
+## Groups of Alphaproteobacteria prevalent in April and May
+```{r}
+dt_temp <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+Nodes <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.tsv", sep=""),TRUE)
+dt_alpha <- merge(dt_temp,Nodes[,c("ID","Class","Genus")],by.x="Source",by.y="ID",all.x=TRUE,all.y=FALSE)
+colnames(dt_alpha)[which(colnames(dt_alpha)=="Class")] <- "Source_Class"
+colnames(dt_alpha)[which(colnames(dt_alpha)=="Genus")] <- "Source_Genus"
+dt_alpha <- merge(dt_alpha,Nodes[,c("ID","Class","Genus")],by.x="Target",by.y="ID",all.x=TRUE,all.y=FALSE)
+colnames(dt_alpha)[which(colnames(dt_alpha)=="Class")] <- "Target_Class"
+colnames(dt_alpha)[which(colnames(dt_alpha)=="Genus")] <- "Target_Genus"
+dt_alpha <- dt_alpha[which(dt_alpha$Source_Class=="Alphaproteobacteria" | dt_alpha$Target_Class=="Alphaproteobacteria"),]
+help <- data.frame(month = colnames(dt_alpha)[grep("BL",colnames(dt_alpha))],
+                   numMonth = rep(c(1:12),10))
+for(i in c(1:12))
+{
+  dt_alpha[,paste("month",i,sep="_")] <- rowSums(dt_alpha[,as.character(help$month[which(help$numMonth==i)])])/10
+}
+dt_Apr <- dt_alpha[which(dt_alpha$month_4>0.8 | dt_alpha$month_5>0.8),-grep("BL",colnames(dt_alpha))]
+rev(sort(table(c(as.character(dt_Apr$Source_Genus[which(dt_Apr$Source_Class=="Alphaproteobacteria")]),
+        as.character(dt_Apr$Target_Genus[which(dt_Apr$Target_Class=="Alphaproteobacteria")])))))
+```
+37 SAR11_Clade_Ia
+29 Rhodobacteraceae_X
+29 Amylibacter
+24 Puniceispirillales_SAR116
+22 Ascidiaceihabitans
+16 Planktomarina
+13 SAR11_Clade_II
+ 7 Parvibaculales_OCS116
+ 6 Kiloniella 

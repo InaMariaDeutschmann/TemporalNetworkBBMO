@@ -1,0 +1,698 @@
+---
+title: "FromASVTableToTemporalNetwork"
+author: "Ina Maria Deutschmann"
+date: "4/6/2021"
+output: html_document
+---
+
+# From ASV table to temporal network
+set path
+```{r}
+PATH <- "~/Dropbox/DATA/Project_DynNW_2021_March/Github"
+```
+
+## Prepare ASV table fro network construction
+```{r}
+# parameter to filter raw ASVs
+ABUNDANCESUM <- 100
+PREVALENCE <- 0.15
+```
+
+Read in ASV count table
+```{r}
+ASV <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts.txt",sep=""), header=TRUE)
+rownames(ASV) <- ASV$ep_ASVNAME
+colnames(ASV)[1] <- "ID"
+TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Taxonomy.txt",sep=""), header=TRUE)
+rownames(TAX) <- TAX$ASVNAME
+colnames(TAX)[1] <- "ID"
+```
+
+Remove Archaeas and Mitochondria
+```{r}
+TAX_raw <- TAX[which(TAX$Kingdom!="Archaea" & TAX$Species!="Mitochondria"),]
+paste("Before:", dim(TAX)[1])
+paste("After:", dim(TAX_raw)[1])
+paste("Removed:", length(which(TAX$Kingdom=="Archaea" | TAX$Species=="Mitochondria")))
+table(TAX_raw$Kingdom)
+```
+[1] "Before: 2960"
+[1] "After: 2924"
+[1] "Removed: 36"
+
+  Archaea  Bacteria Eukaryota 
+        0      1559      1365 
+
+Remove them also from ASV table
+```{r}
+ASV_raw <- ASV[which(as.character(TAX[as.character(rownames(ASV)),"Kingdom"])!="Archaea" &
+                          as.character(TAX[as.character(rownames(ASV)),"Species"])!="Mitochondria"),]
+```
+
+```{r}
+paste("Raw table: ", dim(ASV_raw)[1], " ASVs, ", sum(ASV_raw[,-1]), " reads",
+      length(which(substring(ASV_raw$ID,1,2)=="ep" | substring(ASV_raw$ID,1,2)=="en")), " Euks, ",
+      sum(ASV_raw[which(substring(ASV_raw$ID,1,2)=="ep" | substring(ASV_raw$ID,1,2)=="en"),-1]), " Euk reads, ",
+      length(which(substring(ASV_raw$ID,1,2)=="bp" | substring(ASV_raw$ID,1,2)=="bn")), " Bac, ",
+      sum(ASV_raw[which(substring(ASV_raw$ID,1,2)=="bp" | substring(ASV_raw$ID,1,2)=="bn"),-1]), " Bac reads", sep ="")
+```
+[1] "Raw table: 2924 ASVs, 2273548 reads1365 Euks, 1121855 Euk reads, 1559 Bac, 1151693 Bac reads"
+
+Filtering
+```{r}
+paste("All: ", dim(ASV_raw)[1])
+paste("<=", ABUNDANCESUM, " abundance sum:", length(which(rowSums(ASV_raw[,-1])<=ABUNDANCESUM)))
+paste("<=", PREVALENCE*100, "% prevalence:", length(which((rowSums(1*(ASV_raw[,-1]>0))/120)<=PREVALENCE)))
+paste("removed nodes:", length(which((rowSums(1*(ASV_raw[,-1]>0))/120)<=PREVALENCE | rowSums(ASV_raw[,-1])<=ABUNDANCESUM)))
+paste("remaining nodes:", length(which((rowSums(1*(ASV_raw[,-1]>0))/120)>PREVALENCE & rowSums(ASV_raw[,-1])>ABUNDANCESUM)))
+```
+[1] "All:  2924"
+[1] "<= 100  abundance sum: 868"
+[1] "<= 15 % prevalence: 941"
+[1] "removed nodes: 1142"
+[1] "remaining nodes: 1782"
+
+How much abundance remains?
+```{r}
+ASV_norare <- ASV_raw[which((rowSums(1*(ASV_raw[,-1]>0))/120)>PREVALENCE & rowSums(ASV_raw[,-1])>ABUNDANCESUM),]
+paste("After removing rare microbes: ", dim(ASV_norare)[1], " ASVs, ", sum(ASV_norare[,-1]), " reads",
+      length(which(substring(ASV_norare$ID,1,2)=="ep" | substring(ASV_norare$ID,1,2)=="en")), " Euks, ",
+      sum(ASV_norare[which(substring(ASV_norare$ID,1,2)=="ep" | substring(ASV_norare$ID,1,2)=="en"),-1]), " Euk reads, ",
+      length(which(substring(ASV_norare$ID,1,2)=="bp" | substring(ASV_norare$ID,1,2)=="bn")), " Bac, ",
+      sum(ASV_norare[which(substring(ASV_norare$ID,1,2)=="bp" | substring(ASV_norare$ID,1,2)=="bn"),-1]), " Bac reads", sep ="")
+paste("All ASV: ", dim(ASV_norare)[1]/dim(ASV_raw)[1]*100, sep="")
+paste("All reads: ", sum(ASV_norare[,-1])/sum(ASV_raw[,-1])*100, sep="")
+paste("Euk: ", length(which(substring(ASV_norare$ID,1,2)=="ep" | substring(ASV_norare$ID,1,2)=="en"))/length(which(substring(ASV_raw$ID,1,2)=="ep" | substring(ASV_raw$ID,1,2)=="en"))*100, sep="")
+paste("Euk rads: ", sum(ASV_norare[which(substring(ASV_norare$ID,1,2)=="ep" | substring(ASV_norare$ID,1,2)=="en"),-1])/sum(ASV_raw[which(substring(ASV_raw$ID,1,2)=="ep" | substring(ASV_raw$ID,1,2)=="en"),-1])*100, sep="")
+paste("Bac: ", length(which(substring(ASV_norare$ID,1,2)=="bp" | substring(ASV_norare$ID,1,2)=="bn"))/length(which(substring(ASV_raw$ID,1,2)=="bp" | substring(ASV_raw$ID,1,2)=="bn"))*100, sep="")
+paste("Bac reads: ", sum(ASV_norare[which(substring(ASV_norare$ID,1,2)=="bp" | substring(ASV_norare$ID,1,2)=="bn"),-1])/sum(ASV_raw[which(substring(ASV_raw$ID,1,2)=="bp" | substring(ASV_raw$ID,1,2)=="bn"),-1])*100, sep="")
+```
+[1] "After removing rare microbes: 1782 ASVs, 2155318 reads1009 Euks, 1057599 Euk reads, 773 Bac, 1097719 Bac reads"
+[1] "All ASV: 60.9439124487004"
+[1] "All reads: 94.799757911423"
+[1] "Euk: 73.9194139194139"
+[1] "Euk rads: 94.272343573813"
+[1] "Bac: 49.5830660679923"
+[1] "Bac reads: 95.3135080268787"
+
+```{r}
+TAX_norare <- merge(TAX_raw, data.frame(ID=ASV_norare$ID), by="ID", all.x=FALSE, all.y=TRUE)
+```
+
+```{r}
+write.table(TAX_raw, paste(PATH,"/1_TablesASVENV/ASV_Taxonomy_raw.txt",sep=""), col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+write.table(TAX_norare, paste(PATH,"/1_TablesASVENV/ASV_Tanonomy_norare.txt",sep=""), col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+write.table(ASV_raw, paste(PATH,"/1_TablesASVENV/ASV_Counts_raw.txt",sep=""), col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+write.table(ASV_norare, paste(PATH,"/1_TablesASVENV/ASV_Counts_norare.txt",sep=""), col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+```
+
+Size fraction filtering
+```{r}
+pico <- ASV_norare[which(substr(ASV_norare$ID,2,2)=="p"),]
+nano <- ASV_norare[which(substr(ASV_norare$ID,2,2)=="n"),]
+pico$ID <- gsub("bp_","b_",(gsub("ep_","e_",pico$ID)))
+nano$ID <- gsub("bn_","b_",(gsub("en_","e_",nano$ID)))
+pico$abundancesum_pico <- rowSums(pico[,-1])
+nano$abundancesum_nano <- rowSums(nano[,-1])
+sizefractionfilter <- merge(pico[,c("ID","abundancesum_pico")],nano[,c("ID","abundancesum_nano")],by="ID")
+sizefractionfilter$nano_dividedby_pico <- sizefractionfilter$abundancesum_nano/sizefractionfilter$abundancesum_pico
+plot(sort(sizefractionfilter$nano_dividedby_pico),pch=19,cex=1)
+plot(sort(sizefractionfilter$nano_dividedby_pico),pch=19,cex=1, ylim=c(0,1))
+length(which(sizefractionfilter$nano_dividedby_pico>2))
+length(which(sizefractionfilter$nano_dividedby_pico<0.5))
+length(which(sizefractionfilter$nano_dividedby_pico>2 & substr(sizefractionfilter$ID,1,1)=="b"))
+length(which(sizefractionfilter$nano_dividedby_pico>2 & substr(sizefractionfilter$ID,1,1)=="e"))
+length(which(sizefractionfilter$nano_dividedby_pico<0.5 & substr(sizefractionfilter$ID,1,1)=="b"))
+length(which(sizefractionfilter$nano_dividedby_pico<0.5 & substr(sizefractionfilter$ID,1,1)=="e"))
+```
+length(which(sizefractionfilter$nano_dividedby_pico>2)) = 30 (all Bac)
+length(which(sizefractionfilter$nano_dividedby_pico<0.5)) = 43 (41 Bac and 2 Euk)
+-> nano plankton relative abundances = 0, if ratio is below 0.5
+-> pico plankton relative abundances = 0, if ratio is above 2
+
+```{r}
+ASV_sizefilter <- ASV_norare
+ASV_sizefilter[gsub("_ASV","n_ASV",sizefractionfilter$ID[which(sizefractionfilter$nano_dividedby_pico<0.5)]),-1] <- 0
+ASV_sizefilter[gsub("_ASV","p_ASV",sizefractionfilter$ID[which(sizefractionfilter$nano_dividedby_pico>2)]),-1] <- 0
+length(which(rowSums(ASV_sizefilter[,-1])==0))
+ASV_sizefilter <- ASV_sizefilter[which(rowSums(ASV_sizefilter[,-1])>0),]
+ASV_sizefilter[which((rowSums(1*(ASV_sizefilter[,-1]>0))/120)<=PREVALENCE | rowSums(ASV_sizefilter[,-1])<=ABUNDANCESUM),]
+
+paste("After applying size fraction filtering: ", dim(ASV_sizefilter)[1], " ASVs, ", sum(ASV_sizefilter[,-1]), " reads",
+      length(which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en")), " Euks, ",
+      sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"),-1]), " Euk reads, ",
+      length(which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn")), " Bac, ",
+      sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"),-1]), " Bac reads", sep ="")
+
+paste("Compared to no-rare table")
+paste("All ASV: ", dim(ASV_sizefilter)[1]/dim(ASV_norare)[1]*100, sep="")
+paste("All reads: ", sum(ASV_sizefilter[,-1])/sum(ASV_norare[,-1])*100, sep="")
+paste("Euk: ", length(which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"))/length(which(substring(ASV_norare$ID,1,2)=="ep" | substring(ASV_norare$ID,1,2)=="en"))*100, sep="")
+paste("Euk rads: ", sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"),-1])/sum(ASV_norare[which(substring(ASV_norare$ID,1,2)=="ep" | substring(ASV_norare$ID,1,2)=="en"),-1])*100, sep="")
+paste("Bac: ", length(which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"))/length(which(substring(ASV_norare$ID,1,2)=="bp" | substring(ASV_norare$ID,1,2)=="bn"))*100, sep="")
+paste("Bac reads: ", sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"),-1])/sum(ASV_norare[which(substring(ASV_norare$ID,1,2)=="bp" | substring(ASV_norare$ID,1,2)=="bn"),-1])*100, sep="")
+
+paste("Compared to raw table")
+paste("All ASV: ", dim(ASV_sizefilter)[1]/dim(ASV_raw)[1]*100, sep="")
+paste("All reads: ", sum(ASV_sizefilter[,-1])/sum(ASV_raw[,-1])*100, sep="")
+paste("Euk: ", length(which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"))/length(which(substring(ASV_raw$ID,1,2)=="ep" | substring(ASV_raw$ID,1,2)=="en"))*100, sep="")
+paste("Euk rads: ", sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"),-1])/sum(ASV_raw[which(substring(ASV_raw$ID,1,2)=="ep" | substring(ASV_raw$ID,1,2)=="en"),-1])*100, sep="")
+paste("Bac: ", length(which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"))/length(which(substring(ASV_raw$ID,1,2)=="bp" | substring(ASV_raw$ID,1,2)=="bn"))*100, sep="")
+paste("Bac reads: ", sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"),-1])/sum(ASV_raw[which(substring(ASV_raw$ID,1,2)=="bp" | substring(ASV_raw$ID,1,2)=="bn"),-1])*100, sep="")
+```
+73 ASVs will be removed!
+[1] "After applying size fraction filtering: 1709 ASVs, 2062866 reads1007 Euks, 1057263 Euk reads, 702 Bac, 1005603 Bac reads"
+[1] "Compared to no-rare table"
+[1] "All ASV: 95.9034792368126"
+[1] "All reads: 95.7105169631581"
+[1] "Euk: 99.8017839444995"
+[1] "Euk rads: 99.9682299245744"
+[1] "Bac: 90.8150064683053"
+[1] "Bac reads: 91.6084170903483"
+[1] "Compared to raw table"
+[1] "All ASV: 58.4473324213406"
+[1] "All reads: 90.7333383768454"
+[1] "Euk: 73.7728937728938"
+[1] "Euk rads: 94.2423931791542"
+[1] "Bac: 45.0288646568313"
+[1] "Bac reads: 87.3151959767056"
+
+remove zero-ASVs
+```{r}
+write.table(ASV_sizefilter, paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+```
+
+How many ASV per sizefraction?
+```{r}
+paste("Total number of ASVs:", dim(ASV_sizefilter)[1])
+paste("Bacteria from nano size fraction:", length(which(substr(ASV_sizefilter$ID,1,2)=="bn")))
+paste("Bacteria from pico size fractio:", length(which(substr(ASV_sizefilter$ID,1,2)=="bp")))
+paste("Eukaryota from nano size fractio:", length(which(substr(ASV_sizefilter$ID,1,2)=="en")))
+paste("Eukaryota from pico size fractio:", length(which(substr(ASV_sizefilter$ID,1,2)=="ep")))
+
+paste("In both size fractions:")
+dt_temp_nano <- gsub("bn_","",ASV_sizefilter$ID[which(substr(ASV_sizefilter$ID,1,2)=="bn")])
+dt_temp_pico <- gsub("bp_","",ASV_sizefilter$ID[which(substr(ASV_sizefilter$ID,1,2)=="bp")])
+paste("Bacteria in both size fractio:", length(intersect(dt_temp_nano, dt_temp_pico)))
+dt_temp_nano <- gsub("en_","",ASV_sizefilter$ID[which(substr(ASV_sizefilter$ID,1,2)=="en")])
+dt_temp_pico <- gsub("ep_","",ASV_sizefilter$ID[which(substr(ASV_sizefilter$ID,1,2)=="ep")])
+paste("Eukaryota in both size fractio:", length(intersect(dt_temp_nano, dt_temp_pico)))
+```
+[1] "Total number of ASVs: 1709"
+[1] "Bacteria from nano size fraction: 417"
+[1] "Bacteria from pico size fractio: 285"
+[1] "Eukaryota from nano size fractio: 481"
+[1] "Eukaryota from pico size fractio: 526"
+[1] "In both size fractions:"
+[1] "Bacteria in both size fractio: 214"
+[1] "Eukaryota in both size fractio: 2"
+
+Who are these 2?
+```{r}
+intersect(dt_temp_nano, dt_temp_pico)
+TAX[grep("ASV_00312",TAX$ID),]
+TAX[grep("ASV_00333",TAX$ID),]
+```
+
+## Network construction
+```{bash}
+## Combining ASV abundances with environmental factors and commenting out header
+less ASV_Counts_sizefilter.txt > temp.txt
+tail -n +2 ENV.txt >> temp.txt
+sed -i '1 s/^/#/' temp.txt
+
+## Network construction with eLSA
+X=temp.txt
+MY_SAMPLE_COUNT="$(head -n 1 $X | awk '{$1=""}1' | awk '{print NF}')"
+lsa_compute $X NW_temp.txt -r 1 -s $MY_SAMPLE_COUNT -d 0 -p mix -x 2000 -n percentileZ
+
+## Filter eLSA output for significant associations: p and q value < 0.001
+head -n 1 NW_temp.txt > NW_preliminary.txt
+awk '{ if (($21<0.001) && ($10<0.001)){print} }' NW_temp.txt >> NW_preliminary.txt
+
+## Remove temporary files
+rm temp.txt
+rm NW_temp.txt
+```
+
+## Removing environmental edges with EnDED
+prepare ASV-ENV edges
+```{r}
+for(e in env$ID)
+{
+  dt_temp <- data.frame(Source=as.character(ASV_network$ID), Target=e)
+  write.table(dt_temp, paste(PATH,"2_Networks/ASV_",e,".txt",sep=""),
+              col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+}
+```
+
+prepare ASV-ASV edges
+- because EnDED wants same header as header in ASV-ENV edges
+```{r}
+write.table(NW_filtered[,c("Source","Target")], paste(PATH,"/2_Networks/NW.txt",sep=""),
+              col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+```
+
+EnDED
+```{bash}
+INPUT_NW=NW.txt
+INPUT_ASV=ASV_Counts_sizefilter.txt
+INPUT_ENV=ENV.txt
+OUTPUT_NW=NW_CoOcc.tsv
+METHODS=CO
+./EnDED/build/EnDED --input_network_file $INPUT_NW --methods ${METHODS} --II_DPI_abundance_file $INPUT_ASV --output_network_file $OUTPUT_NW
+rm triplet.txt
+echo log_* > LOG_NW_CoOcc.tsv
+less log_* >> LOG_NW_CoOcc.tsv
+rm log_*
+
+for ENVID in Temp SECCHI SAL_CTD CHL_total PO4 NH4 NO2 NO3 SI Day_length_Hours_light
+do
+   # Parameters
+   ##############################################
+   less NW.txt > NW_temp.txt
+   tail -n+2 ASV_ENV_$ENVID.txt >> NW_temp.txt
+   INPUT_NW=NW_temp.txt
+   INPUT_ASV=ASV_Counts_sizefilter.txt
+   INPUT_ENV=ENV.txt
+   OUTPUT_TRIPLET=Triplet_ENV_$ENVID.tsv
+   OUTPUT_NW=NW_ENV_$ENVID.tsv
+
+   # Run with methods: SP,II,DPI,CO
+   ##############################################
+   METHODS=II,DPI
+ 
+   ## EnDED
+   ##############################################
+   ./EnDED/build/EnDED --input_network_file $INPUT_NW --methods ${METHODS} --II_permutation_iteration 1000 --do_pre_jointP_comp --II_DPI_abundance_file $INPUT_ASV --II_DPI_ENVparameter_file $INPUT_ENV --output_network_file $OUTPUT_NW --output_triplet_info $OUTPUT_TRIPLET
+
+   echo log_* > LOG_NW_ENV_$ENVID.tsv
+   less log_* >> LOG_NW_ENV_$ENVID.tsv
+   rm log_*
+done
+```
+
+```{r}
+NW <- read.table(paste(PATH,"/02_Networks/NW_preliminary.txt",sep=""), header = TRUE)
+NW$original <- 1
+dt_temp <- read.table(paste(PATH,"/02_Networks/NW_ENV_CHL_total.tsv",sep=""), header = TRUE)
+NW <- merge(NW, dt_temp[-grep("ENV",dt_temp$Target),c("Source", "Target", "MutualInformation", "InterationInformation", "II_p_value", "DataProcessingInequality_MI_rank", "COMBI_II_DPI")], by=c("Source","Target"), all=TRUE)
+colnames(NW)[which(colnames(NW)=="InterationInformation")] <- "ENV_CHL_total_InterationInformation"
+colnames(NW)[which(colnames(NW)=="II_p_value")] <- "ENV_CHL_total_II_p_value"
+colnames(NW)[which(colnames(NW)=="DataProcessingInequality_MI_rank")] <- "ENV_CHL_total_DataProcessingInequality_MI_rank"
+colnames(NW)[which(colnames(NW)=="COMBI_II_DPI")] <- "ENV_CHL_total_COMBI_II_DPI"
+
+for(i in c("Temp", "SECCHI", "SAL_CTD", "PO4", "NH4", "NO2", "NO3", "SI", "Day_length_Hours_light"))
+{
+  filename <- paste(PATH,"/02_Networks/NW_ENV_",i,".tsv",sep="")
+  dt_temp <- read.table(filename, header = TRUE)
+  
+  NW <- merge(NW, dt_temp[-grep("ENV",dt_temp$Target),c("Source", "Target", "InterationInformation", "II_p_value", "DataProcessingInequality_MI_rank", "COMBI_II_DPI")], by=c("Source","Target"), all=TRUE)
+  colnames(NW)[which(colnames(NW)=="InterationInformation")] <- paste("ENV_",i,"_InterationInformation",sep="")
+  colnames(NW)[which(colnames(NW)=="II_p_value")] <- paste("ENV_",i,"_II_p_value",sep="")
+  colnames(NW)[which(colnames(NW)=="DataProcessingInequality_MI_rank")] <- paste("ENV_",i,"_DataProcessingInequality_MI_rank",sep="")
+  colnames(NW)[which(colnames(NW)=="COMBI_II_DPI")] <- paste("ENV_",i,"_COMBI_II_DPI",sep="")
+}
+
+NW$COMBI_allENV <- rowSums(NW[,grep("COMBI",colnames(NW))])
+```
+
+```{r}
+print("all edges")
+table(NW$COMBI_allENV)
+print("positive edges")
+table(NW$COMBI_allENV[which(NW$LS>0)])
+print("negative edges")
+table(NW$COMBI_allENV[which(NW$LS<0)])
+```
+[1] "all edges"
+    6     7     8     9    10 
+    1    61   506  2747 26505 
+[1] "positive edges"
+           7     8     9    10 
+           1    33  1019 23405 
+[1] "negative edges"
+   6    7    8    9   10 
+   1   60  473 1728 3100 
+   
+1 edge was kept by 6 ENV, i.e. removed by 4 (0 pos and 1 neg)
+61 edge was kept by 7 ENV, i.e. removed by 3 (1 pos and 60 neg)
+506 edge was kept by 8 ENV, i.e. removed by 2 (33 pos and 473 neg)
+2747 edge was kept by 9 ENV, i.e. removed by 1 (1019 pos and 1728 neg)
+26505 edge was kept by 10 ENV, i.e. removed by none (23405 pos and 3100 neg)
+
+```{r}
+paste(length(which(NW$COMBI_allENV==10)), " (", length(which(NW$COMBI_allENV==10))/dim(NW)[1], "%) edges were kept in network")
+paste(length(which(NW$COMBI_allENV<10)), " (", length(which(NW$COMBI_allENV<10))/dim(NW)[1], "%) edges were removed from the network")
+```
+[1] "26505  ( 0.888832997987928 %) edges were kept in network"
+[1] "3315  ( 0.111167002012072 %) edges were removed from the network"
+
+How many edges did II remove?
+```{r}
+colnames(NW)
+temp <- NW[,c(1,2)]
+for(i in c("Temp", "SECCHI", "SAL_CTD", "PO4", "NH4", "NO2", "NO3", "SI", "Day_length_Hours_light"))
+{
+  temp[,i] <- 0
+  temp[which(NW[,paste("ENV",i,"InterationInformation",sep="_")]<0 & NW[,paste("ENV",i,"II_p_value",sep="_")]<0.05),i] <- 1
+}
+table(rowSums(temp[,-c(1,2)]))
+length(which(rowSums(temp[,-c(1,2)])!=0))
+length(which(rowSums(temp[,-c(1,2)])!=0))/dim(NW)[1]*100
+```
+4063 8979 9572 5303 1589  294   20 
+[1] 25757
+[1] 86.37492
+
+Who was responsible for edge removal?
+```{r}
+paste(length(which(NW$ENV_CHL_total_COMBI_II_DPI==0)), " (", length(which(NW$ENV_CHL_total_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) CHL_total", sep = "")
+paste(length(which(NW$ENV_Temp_COMBI_II_DPI==0)), " (", length(which(NW$ENV_Temp_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) Temp", sep = "")
+paste(length(which(NW$ENV_SECCHI_COMBI_II_DPI==0)), " (", length(which(NW$ENV_SECCHI_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) SECCHI", sep = "")
+paste(length(which(NW$ENV_SAL_CTD_COMBI_II_DPI==0)), " (", length(which(NW$ENV_SAL_CTD_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) Salinity", sep = "")
+paste(length(which(NW$ENV_PO4_COMBI_II_DPI==0)), " (", length(which(NW$ENV_PO4_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) PO4", sep = "")
+paste(length(which(NW$ENV_NH4_COMBI_II_DPI==0)), " (", length(which(NW$ENV_NH4_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) NH4", sep = "")
+paste(length(which(NW$ENV_NO2_COMBI_II_DPI==0)), " (", length(which(NW$ENV_NO2_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) NO2", sep = "")
+paste(length(which(NW$ENV_NO3_COMBI_II_DPI==0)), " (", length(which(NW$ENV_NO3_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) NO3", sep = "")
+paste(length(which(NW$ENV_SI_COMBI_II_DPI==0)), " (", length(which(NW$ENV_SI_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) SI", sep = "")
+paste(length(which(NW$ENV_Day_length_Hours_light_COMBI_II_DPI==0)), " (", length(which(NW$ENV_Day_length_Hours_light_COMBI_II_DPI==0))/dim(NW)[1]*100,"%) Daylength", sep = "")
+```
+[1] "838 (2.81019450033535%) CHL_total"
+[1] "1920 (6.43863179074447%) Temp"
+[1] "47 (0.157612340710932%) SECCHI"
+[1] "0 (0%) Salinity"
+[1] "0 (0%) PO4"
+[1] "0 (0%) NH4"
+[1] "192 (0.643863179074447%) NO2"
+[1] "57 (0.191146881287726%) NO3"
+[1] "162 (0.543259557344064%) SI"
+[1] "730 (2.44802146210597%) Daylength"
+
+Positive and negative?
+```{r}
+paste(length(which(NW$ENV_CHL_total_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_CHL_total_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg CHL_total", sep = "")
+paste(length(which(NW$ENV_Temp_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_Temp_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg Temp", sep = "")
+paste(length(which(NW$ENV_SECCHI_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_SECCHI_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg SECCHI", sep = "")
+paste(length(which(NW$ENV_SAL_CTD_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_SAL_CTD_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg SAL_CTD", sep = "")
+paste(length(which(NW$ENV_PO4_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_PO4_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg PO4", sep = "")
+paste(length(which(NW$ENV_NH4_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_NH4_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg NH4", sep = "")
+paste(length(which(NW$ENV_NO2_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_NO2_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg NO2", sep = "")
+paste(length(which(NW$ENV_NO3_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_NO3_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg NO3", sep = "")
+paste(length(which(NW$ENV_SI_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_SI_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg SI", sep = "")
+paste(length(which(NW$ENV_Day_length_Hours_light_COMBI_II_DPI[which(NW$LS>0)]==0)), " pos + ", length(which(NW$ENV_Day_length_Hours_light_COMBI_II_DPI[which(NW$LS<0)]==0)), " neg Day_length_Hours_light", sep = "")
+```
+[1] "82 pos + 756 neg CHL_total"
+[1] "725 pos + 1195 neg Temp"
+[1] "0 pos + 47 neg SECCHI"
+[1] "0 pos + 0 neg SAL_CTD"
+[1] "0 pos + 0 neg PO4"
+[1] "0 pos + 0 neg NH4"
+[1] "26 pos + 166 neg NO2"
+[1] "12 pos + 45 neg NO3"
+[1] "6 pos + 156 neg SI"
+[1] "237 pos + 493 neg Day_length_Hours_light"
+
+-> Salinity, PO4, NH4 can be disregarded
+```{r}
+for(i in colnames(NW)[grep("COMBI_II", colnames(NW))])
+{
+  NW[,paste(gsub("_COMBI_II_DPI","",i),"indirect",sep="_")] <- "kept"
+  NW[which(NW[,i]==0),paste(gsub("_COMBI_II_DPI","",i),"indirect",sep="_")] <- gsub("_COMBI_II_DPI","",i)
+}
+NW$ENV <- NA
+for(i in c(1:dim(NW)[1]))
+{
+  NW$ENV[i] <- gsub("kept","",paste(NW[i,grep("indirect",colnames(NW))],collapse=""))
+}
+dt_env <- sort(table(NW$ENV), decreasing = TRUE)
+dt_env
+```
+                                           kept                                        ENV_Temp                      ENV_Day_length_Hours_light 
+                                          26505                                            1470                                             535 
+                                  ENV_CHL_total                           ENV_CHL_totalENV_Temp                                         ENV_NO2 
+                                            504                                             194                                             143 
+             ENV_TempENV_Day_length_Hours_light                                          ENV_SI         ENV_CHL_totalENV_Day_length_Hours_light 
+                                            129                                              68                                              30 
+                            ENV_CHL_totalENV_SI                                 ENV_TempENV_NO2                                  ENV_TempENV_SI 
+                                             26                                              24                                              19 
+                                        ENV_NO3 ENV_CHL_totalENV_TempENV_Day_length_Hours_light                     ENV_CHL_totalENV_TempENV_SI 
+                                             18                                              16                                              16 
+               ENV_SIENV_Day_length_Hours_light                                 ENV_TempENV_NO3                            ENV_CHL_totalENV_NO2 
+                                             14                                              14                                              12 
+                           ENV_CHL_totalENV_NO3                 ENV_CHL_totalENV_TempENV_SECCHI                              ENV_TempENV_SECCHI 
+                                             12                                              11                                              10 
+                                     ENV_SECCHI                         ENV_CHL_totalENV_SECCHI                                   ENV_NO2ENV_SI 
+                                              9                                               8                                               7 
+                   ENV_CHL_totalENV_TempENV_NO3                           ENV_TempENV_NO3ENV_SI                    ENV_CHL_totalENV_TempENV_NO2 
+                                              4                                               4                                               2 
+                                  ENV_NO3ENV_SI                                ENV_SECCHIENV_SI    ENV_TempENV_SECCHIENV_Day_length_Hours_light 
+                                              2                                               2                                               2 
+                 ENV_CHL_totalENV_SECCHIENV_NO3   ENV_CHL_totalENV_SIENV_Day_length_Hours_light           ENV_CHL_totalENV_TempENV_SECCHIENV_SI 
+                                              1                                               1                                               1 
+              ENV_NO2ENV_Day_length_Hours_light            ENV_SECCHIENV_Day_length_Hours_light                               ENV_SECCHIENV_NO3 
+                                              1                                               1                                               1 
+                         ENV_TempENV_NO2ENV_NO3                           ENV_TempENV_NO2ENV_SI                       ENV_TempENV_SECCHIENV_NO2 
+                                              1                                               1                                               1 
+       ENV_TempENV_SIENV_Day_length_Hours_light 
+                                              1 
+
+Filtering out environmentally-driven edges from network
+```{r}
+NW_filtered <- NW[which(NW$COMBI_allENV==10),]
+length(unique(c(as.character(NW_filtered$Source), as.character(NW_filtered$Target))))
+dim(NW)[1]
+length(which(NW$LS>0))
+length(which(NW$LS>0))/dim(NW)*100
+length(which(NW$LS<0))
+length(which(NW$LS<0))/dim(NW)[1]*100
+dim(NW_filtered)[1]
+length(which(NW_filtered$LS>0))
+length(which(NW_filtered$LS>0))/dim(NW_filtered)*100
+length(which(NW_filtered$LS<0))
+length(which(NW_filtered$LS<0))/dim(NW_filtered)[1]*100
+```
+-> All 754 nodes remain in network!
+-> Before EnDED: 29,820 edges (24,458, 82.02% positive, and 5,362, 17.98% negative
+-> After EnDED: 26,505 edges (23,405, 88.30% positive, and 3,100, 11.70% negative
+
+Save tables
+```{r}
+write.table(NW,
+            paste(PATH,"/02_Networks/NW_withEnDED.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, sep = "\t", dec = ".", quote = FALSE)
+write.table(NW_filtered[,c("Source","Target","LS","Xs","Len","MutualInformation")],
+            paste(PATH,"/02_Networks/NW_afterEnDED.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, sep = "\t", dec = ".", quote = FALSE)
+```
+
+Number of nodes and edges in unfiltered network
+```{r}
+temp <- NW
+paste("Connected nodes:", length(unique(c(as.character(temp$Source), as.character(temp$Target)))))
+paste("Connected nodes + Bac + pico:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="bp")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="bp")])))))
+paste("Connected nodes + Bac + nano:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="bn")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="bn")])))))
+paste("Connected nodes + Bac + union:", length(unique(gsub("bp","", gsub("bn","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))))))
+paste("Connected nodes + Bac + intersection:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))) -
+                                               length(unique(gsub("bp","", gsub("bn","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))))))
+paste("Connected nodes + Euk + pico:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="ep")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="ep")])))))
+paste("Connected nodes + Euk + nano:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="en")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="en")])))))
+paste("Connected nodes + Euk + union:", length(unique(gsub("ep","", gsub("en","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))))))
+paste("Connected nodes + Euk + intersection:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))) -
+                                               length(unique(gsub("ep","", gsub("en","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))))))
+paste("Edges:", dim(temp)[1])
+paste("Positive edges: ", length(which(temp$LS>0)), " (", length(which(temp$LS>0))/dim(temp)[1]*100, "%)", sep="")
+paste("Negative edges: ", length(which(temp$LS<0)), " (", length(which(temp$LS<0))/dim(temp)[1]*100, "%)", sep="")
+```
+[1] "Connected nodes: 754"
+[1] "Connected nodes + Bac + pico: 169"
+[1] "Connected nodes + Bac + nano: 279"
+[1] "Connected nodes + Bac + union: 309"
+[1] "Connected nodes + Bac + intersection: 139"
+[1] "Connected nodes + Euk + pico: 150"
+[1] "Connected nodes + Euk + nano: 156"
+[1] "Connected nodes + Euk + union: 306"
+[1] "Connected nodes + Euk + intersection: 0"
+[1] "Edges: 29820"
+[1] "Positive edges: 24458 (82.018779342723%)"
+[1] "Negative edges: 5362 (17.981220657277%)"
+
+Number of nodes and edges in filtered network (after EnDED)
+```{r}
+temp <- NW_filtered
+paste("Connected nodes:", length(unique(c(as.character(temp$Source), as.character(temp$Target)))))
+paste("Connected nodes + Bac + pico:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="bp")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="bp")])))))
+paste("Connected nodes + Bac + nano:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="bn")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="bn")])))))
+paste("Connected nodes + Bac + union:", length(unique(gsub("bp","", gsub("bn","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))))))
+paste("Connected nodes + Bac + intersection:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))) -
+                                               length(unique(gsub("bp","", gsub("bn","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))))))
+paste("Connected nodes + Euk + pico:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="ep")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="ep")])))))
+paste("Connected nodes + Euk + nano:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="en")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="en")])))))
+paste("Connected nodes + Euk + union:", length(unique(gsub("ep","", gsub("en","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))))))
+paste("Connected nodes + Euk + intersection:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))) -
+                                               length(unique(gsub("ep","", gsub("en","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))))))
+paste("Edges:", dim(temp)[1])
+paste("Positive edges: ", length(which(temp$LS>0)), " (", length(which(temp$LS>0))/dim(temp)[1]*100, "%)", sep="")
+paste("Negative edges: ", length(which(temp$LS<0)), " (", length(which(temp$LS<0))/dim(temp)[1]*100, "%)", sep="")
+```
+[1] "Connected nodes: 754"
+[1] "Connected nodes + Bac + pico: 169"
+[1] "Connected nodes + Bac + nano: 279"
+[1] "Connected nodes + Bac + union: 309"
+[1] "Connected nodes + Bac + intersection: 139"
+[1] "Connected nodes + Euk + pico: 150"
+[1] "Connected nodes + Euk + nano: 156"
+[1] "Connected nodes + Euk + union: 306"
+[1] "Connected nodes + Euk + intersection: 0"
+[1] "Edges: 26505"
+[1] "Positive edges: 23405 (88.3040935672515%)"
+[1] "Negative edges: 3100 (11.6959064327485%)"
+
+## Co-occurrence filter
+```{r}
+ASV <- read.table(paste(PATH,"/1_TablesASVENV/ASV_sizefilter.txt",sep=""), header = TRUE)
+NW <- read.table(paste(PATH,"/02_Networks/NW_afterEnDED.tsv",sep=""), header = TRUE, sep = "\t")
+coOcc <- read.table(paste(PATH,"/02_Networks/NW_CoOcc.tsv",sep=""), header = TRUE, sep = "\t")
+NW <- merge(NW, coOcc[,-3], by=c("Source","Target"), all.x=TRUE, all.y=FALSE)
+
+A_presence <- 1*(ASV[,-1]>0)
+rownames(A_presence) <- ASV$ID
+NW$intersection <- rowSums(1*((A_presence[as.character(NW$Source),]+A_presence[as.character(NW$Target),])>1))
+NW$union <- rowSums(1*((A_presence[as.character(NW$Source),]+A_presence[as.character(NW$Target),])>0))
+NW$J <- NW$intersection/NW$union
+
+plot(NW$J, NW$percentage_co_occurrence, breaks = 100)
+```
+
+```{r}
+print("nodes")
+length(unique(c(as.character(NW[which(NW$J>0.5),c("Source")]),as.character(NW[which(NW$J>0.5),c("Target")]))))
+print("all")
+length(which(NW$J<=0.5))
+length(which(NW$J>0.5))
+print("pos")
+length(which(NW$J<=0.5 & NW$LS>0))
+length(which(NW$J>0.5 & NW$LS>0))
+print("neg")
+length(which(NW$J<=0.5 & NW$LS<0))
+length(which(NW$J>0.5 & NW$LS<0))
+print("%")
+length(which(NW$J>0.5 & NW$LS>0))/length(which(NW$J>0.5))*100
+length(which(NW$J>0.5 & NW$LS<0))/length(which(NW$J>0.5))*100
+```
+[1] "nodes"
+[1] 709
+
+[1] "all"
+[1] 9879
+[1] 16626
+
+[1] "pos"
+[1] 6924
+[1] 16481
+
+[1] "neg"
+[1] 2955
+[1] 145
+
+[1] "%"
+[1] 99.12787
+[1] 0.872128
+
+```{r}
+write.table(NW[which(NW$J>0.5),],
+            paste(PATH,"/02_Networks/NW_static.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, sep = "\t", dec = ".", quote = FALSE)
+```
+
+Abundances of ASVs
+```{r}
+NW_filtered <- read.table(paste(PATH,"/02_Networks/NW_static.tsv",sep=""), header=TRUE)
+Nodes <- data.frame(ID=unique(c(as.character(NW_filtered$Source),as.character(NW_filtered$Target))))
+ASV_network <- merge(Nodes,ASV_sizefilter, by="ID", all.x=TRUE, all.y=FALSE)
+
+paste("After applying EnDED and J-filtering: ", dim(ASV_network)[1], " ASVs, ", sum(ASV_network[,-1]), " reads, ",
+      length(which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en")), " Euks, ",
+      sum(ASV_network[which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en"),-1]), " Euk reads, ",
+      length(which(substring(ASV_network$ID,1,2)=="bp" | substring(ASV_network$ID,1,2)=="bn")), " Bac, ",
+      sum(ASV_network[which(substring(ASV_network$ID,1,2)=="bp" | substring(ASV_network$ID,1,2)=="bn"),-1]), " Bac reads", sep ="")
+
+paste("Compared to sizefraction-filtered table")
+paste("All ASV: ", dim(ASV_network)[1]/dim(ASV_sizefilter)[1]*100, sep="")
+paste("All reads: ", sum(ASV_network[,-1])/sum(ASV_sizefilter[,-1])*100, sep="")
+paste("Euk: ", length(which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en"))/length(which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"))*100, sep="")
+paste("Euk rads: ", sum(ASV_network[which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en"),-1])/sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"),-1])*100, sep="")
+paste("Bac: ", length(which(substring(ASV_network$ID,1,2)=="bp" | substring(ASV_network$ID,1,2)=="bn"))/length(which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"))*100, sep="")
+paste("Bac reads: ", sum(ASV_network[which(substring(ASV_network$ID,1,2)=="bp" | substring(ASV_network$ID,1,2)=="bn"),-1])/sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"),-1])*100, sep="")
+```
+[1] "After applying EnDED and J-filtering: 709 ASVs, 1621959 reads, 294 Euks, 719558 Euk reads, 415 Bac, 902401 Bac reads"
+[1] "Compared to sizefraction-filtered table"
+[1] "All ASV: 41.4862492685781"
+[1] "All reads: 78.6264837367042"
+[1] "Euk: 29.1956305858987"
+[1] "Euk rads: 68.0585625336364"
+[1] "Bac: 59.1168091168091"
+[1] "Bac reads: 89.7373018974685"
+
+```{r}
+temp <- NW_filtered
+paste("Connected nodes:", length(unique(c(as.character(temp$Source), as.character(temp$Target)))))
+paste("Connected nodes + Bac + pico:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="bp")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="bp")])))))
+paste("Connected nodes + Bac + nano:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="bn")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="bn")])))))
+paste("Connected nodes + Bac + union:", length(unique(gsub("bp","", gsub("bn","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))))))
+paste("Connected nodes + Bac + intersection:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))) -
+                                               length(unique(gsub("bp","", gsub("bn","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="b")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="b")])))))))
+paste("Connected nodes + Euk + pico:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="ep")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="ep")])))))
+paste("Connected nodes + Euk + nano:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,2)=="en")]), as.character(temp$Target[which(substr(temp$Target,1,2)=="en")])))))
+paste("Connected nodes + Euk + union:", length(unique(gsub("ep","", gsub("en","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))))))
+paste("Connected nodes + Euk + intersection:", length(unique(c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))) -
+                                               length(unique(gsub("ep","", gsub("en","",c(as.character(temp$Source[which(substr(temp$Source,1,1)=="e")]), as.character(temp$Target[which(substr(temp$Target,1,1)=="e")])))))))
+paste("Edges:", dim(temp)[1])
+paste("Positive edges: ", length(which(temp$LS>0)), " (", length(which(temp$LS>0))/dim(temp)[1]*100, "%)", sep="")
+paste("Negative edges: ", length(which(temp$LS<0)), " (", length(which(temp$LS<0))/dim(temp)[1]*100, "%)", sep="")
+```
+[1] "Connected nodes: 709"
+[1] "Connected nodes + Bac + pico: 164"
+[1] "Connected nodes + Bac + nano: 251"
+[1] "Connected nodes + Bac + union: 281"
+[1] "Connected nodes + Bac + intersection: 134"
+[1] "Connected nodes + Euk + pico: 141"
+[1] "Connected nodes + Euk + nano: 153"
+[1] "Connected nodes + Euk + union: 294"
+[1] "Connected nodes + Euk + intersection: 0"
+[1] "Edges: 16626"
+[1] "Positive edges: 16481 (99.1278720076988%)"
+[1] "Negative edges: 145 (0.872127992301215%)"
+
+```{r}
+write.table(ASV_network,
+            paste(PATH,"/01_TablesASVENV/ASV_Counts_static_network.txt",sep=""),
+            col.names = TRUE, row.names = FALSE, sep = "\t", dec = ".", quote = FALSE)
+```
+
+# From single static network to temporal network
+```{r}
+ASV_abund <- read.table(paste(PATH,"/01_TablesASVENV/ASV_Counts_static_network.txt",sep=""), header = TRUE)
+rownames(ASV_abund) <- ASV_abund$ID
+NW <- read.table(paste(PATH,"/02_Networks/NW_static.tsv",sep=""), header = TRUE)
+NW_track <- NW
+Month_ID <- data.frame(Month_ID=c(1:120))
+rownames(Month_ID) <- colnames(ASV_abund)[grep("BL",colnames(ASV_abund))]
+for(i in colnames(ASV_abund)[grep("BL",colnames(ASV_abund))])
+{
+  # both microorganism appear
+  NW_track[,substr(i,1,6)] <- 1*(ASV_abund[as.character(NW$Source),i]>0) + 1*(ASV_abund[as.character(NW$Target),i]>0)
+  # edge is present in month predicted by eLSA
+  NW_track[which(NW$Xs<=Month_ID[i,"Month_ID"] & (NW$X+NW$Len-1)>=Month_ID[i,"Month_ID"]),substr(i,1,6)] <- NW_track[which(NW$Xs<=Month_ID[i,"Month_ID"] & (NW$X+NW$Len-1)>=Month_ID[i,"Month_ID"]),substr(i,1,6)] + 10
+}
+
+write.table(NW_track,
+            paste(PATH,"/02_Networks/NW_temporal_10withinelsaduration_1_2_nodespresent.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, sep = "\t", dec = ".", quote = FALSE)
+NW <- NW_track
+NW[,grep("BL",colnames(NW))] <- 1*(NW[,grep("BL",colnames(NW))]==12)
+write.table(NW,
+            paste(PATH,"/02_Networks/NW_temporal.tsv",sep=""),
+            col.names = TRUE, row.names = FALSE, sep = "\t", dec = ".", quote = FALSE)
+```
+

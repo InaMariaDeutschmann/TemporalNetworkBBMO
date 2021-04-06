@@ -1,0 +1,1090 @@
+---
+title: "BBMO_NWProperties"
+author: "Ina Maria Deutschmann"
+date: "4/6/2020"
+output: html_document
+---
+
+# Network properties of BBMO networks
+set path
+```{r}
+PATH <- "~/Dropbox/DATA/Project_DynNW_2021_March/Github"
+```
+
+Prerquisites
+```{r, echo = FALSE}
+library(igraph)
+library(tnet)    # https://toreopsahl.com/2010/03/20/closeness-centrality-in-networks-with-disconnected-components/
+library(ggplot2)
+library(ggridges)
+theme_set(theme_minimal())
+library(ggplot2)
+library(reshape2)
+Color_Months <- c(Jan="#08519C", Feb="#2171B5", Mar="#6BAED6",
+                  Apr="#006D2C", May="#41AB5D", Jun="#74C476",
+                  Jul="#980043", Aug="#CE1256", Sep="#DF65B0",
+                  Oct="#993404", Nov="#CC4C02", Dec="#EC7014")
+```
+
+data
+```{r}
+NW <- read.table(paste(PATH,"/02_Networks/NW_temporal.tsv", header = TRUE, stringsAsFactors = FALSE)
+G <- graph_from_edgelist(as.matrix(NW[,c("Source","Target")]))
+vcount(G)
+ecount(G)
+```
+16,626 edges and 709 nodes
+
+## Global network properties
+function: get_nw_properties(dt)
+```{r}
+get_nw_proterties <- function(dt, col_associationScore, ID){
+  parameters <- c('num_nodes', 'num_edges', 'edge_density', 'num_pos_edges', 'portion_pos_edges', 'num_neg_edges', 'portion_neg_edges',
+                  'average_pos_association_strength','average_neg_association_strength',
+                  'transitivity_global_clusering_coef', 'transitivity_ave_clustering_coef_mean_local',
+                  'ave_path_length', 'diameter', 'mean_degree', 'degreecentralization',
+                  'assortativity_nominal_EukProk', 'assortativity_nominal_Sizefraction', 'assortativity_degree',
+                  'ave_node_betweenness', 'ave_edge_betweenness', 'betweennesscentralization',
+                  'ave_closeness', 'closenesscentralization', 'closenesscentralization_disconnected_graphs', 'closenesscentralization_disconnected_graphs_normalized',
+                  'count_nano', 'count_pico', 'count_euk', 'count_bac', 'count_en', 'count_ep', 'count_bn', 'count_bp',
+                  'fraction_nano', 'fraction_pico', 'fraction_euk', 'fraction_bac', 'fraction_en', 'fraction_ep', 'fraction_bn', 'fraction_bp')
+
+  NWpropOverview <- data.frame(newNW = rep(0, length(parameters)))
+  rownames(NWpropOverview) <- parameters
+
+  # new entry
+  NWpropOverview$newNW
+
+  # Create igraph object
+  G <- graph_from_data_frame(dt, directed = FALSE)
+
+  # number of nodes without isolated nodes
+  NWpropOverview['num_nodes', 'newNW'] <- vcount(G)
+
+  # number of edges (`num_edges`) 
+  NWpropOverview['num_edges', 'newNW'] <- ecount(G)
+
+  # edge density (`edge_density`): The proportion of present edges from all possible edges in the network.
+  NWpropOverview['edge_density', 'newNW'] <- edge_density(simplify(G), loops = FALSE)
+
+  # number of positive edges (`num_pos_edges`)
+  NWpropOverview['num_pos_edges', 'newNW'] <- sum(dt[,col_associationScore]>0)
+
+  # percentage of postive edges (`portion_pos_edges`)
+  NWpropOverview['portion_pos_edges', 'newNW'] <- NWpropOverview['num_pos_edges', 'newNW'] / NWpropOverview['num_edges', 'newNW']
+
+  # number of negativee edges (`num_neg_edges`)
+  NWpropOverview['num_neg_edges', 'newNW'] <- sum(dt[,col_associationScore]<0)
+
+  # percentage of negative edges (`portion_neg_edges`)
+  NWpropOverview['portion_neg_edges', 'newNW'] <- NWpropOverview['num_neg_edges', 'newNW'] / NWpropOverview['num_edges', 'newNW']
+  
+  # percentage of negative edges (`portion_neg_edges`)
+  NWpropOverview['average_pos_association_strength', 'newNW'] <- mean(dt[dt[,col_associationScore]>0,col_associationScore])
+  
+  # percentage of negative edges (`portion_neg_edges`)
+  NWpropOverview['average_neg_association_strength', 'newNW'] <- mean(dt[dt[,col_associationScore]<0,col_associationScore])
+
+  # transitivity of a graph
+  NWpropOverview['transitivity_global_clusering_coef', 'newNW'] <- transitivity(G, type="global")
+  NWpropOverview['transitivity_ave_clustering_coef_mean_local', 'newNW'] <- transitivity(G, type="average")
+
+  # average path length (`ave_path_length`): Average path length: the mean of the shortest distance between each pair of nodes in the network (in both directions for directed graphs).
+  NWpropOverview['ave_path_length', 'newNW'] <- average.path.length(G, directed = FALSE, unconnected = TRUE)
+  # mean_distance(g, directed=F) would also work
+
+  # diameter (`diameter`): longest shortest path between two nodes in the network.
+  NWpropOverview['diameter', 'newNW'] <- diameter(G, directed = FALSE, weights=NA)
+
+  # average degree (`ave_degree`) (for each node-> histogram) (degree distribution)
+  NWpropOverview['mean_degree', 'newNW'] <- mean(degree(G, mode="all"))
+
+  # degreecentralization
+  NWpropOverview['degreecentralization', 'newNW'] <- centr_degree(G, mode="all", normalized=T)$centralization
+
+  # assortativity_nominal_EukProk
+  types <- substr(V(G)$name,1,1)
+  types[which(types=="e")] <- 1
+  types[which(types=="b")] <- 2
+  NWpropOverview['assortativity_nominal_EukProk', 'newNW'] <- assortativity_nominal(G, types, directed = FALSE)
+
+  # assortativity_nominal_Sizefraction
+  types <- substr(V(G)$name,2,2)
+  types[which(types=="p")] <- 1
+  types[which(types=="n")] <- 2
+  NWpropOverview['assortativity_nominal_Sizefraction', 'newNW'] <- assortativity_nominal(G, types, directed = FALSE)
+
+  # assortativity_degree
+  NWpropOverview['assortativity_degree', 'newNW'] <- assortativity_degree(G, directed = FALSE)
+
+  #Betweenness (centrality based on a broker position connecting others)
+  #Number of geodesics that pass through the node or the edge.
+  # average betweenness (`ave_betweenness`)
+  NWpropOverview['ave_node_betweenness', 'newNW'] <- mean(betweenness(G, directed = FALSE, weights = NA))
+  NWpropOverview['ave_edge_betweenness', 'newNW'] <- mean(edge_betweenness(G, directed = FALSE, weights = NA))
+  # betweennesscentralization
+  NWpropOverview['betweennesscentralization', 'newNW'] <- centr_betw(G, directed = FALSE, normalized=T)$centralization
+
+  #Closeness (centrality based on distance to others in the graph)
+  #Inverse of the node???s average geodesic distance to others in the ig.sparccwork.
+  # average closeness (`ave_closeness`)
+  NWpropOverview['ave_closeness', 'newNW'] <- mean(closeness(G, mode = "all", weights = NA))
+
+  # closenesscentralization
+  NWpropOverview['closenesscentralization', 'newNW'] <- centr_clo(G, mode = "all", normalized=T)$centralization
+
+  # closenesscentralization_disconnected_graphs
+  # The network might be undirected. If this is the case, each tie should be mention twice. The symmetrise-function can be used to include reverse version of each tie. -> Thus, each edge is added twice: both ways!
+  ID_mapping <- data.frame(ID=c(1:vcount(G)))
+  rownames(ID_mapping) <- V(G)$name
+  net <- rbind(cbind(i=ID_mapping[dt$Source,"ID"],j=ID_mapping[dt$Target,"ID"],w=rep(1,length(ID_mapping[dt$Source,"ID"]))),
+               cbind(i=ID_mapping[dt$Target,"ID"],j=ID_mapping[dt$Source,"ID"],w=rep(1,length(ID_mapping[dt$Source,"ID"]))))
+
+  Closeness_alternative <- closeness_w(net, gconly = FALSE)
+  NWpropOverview['closenesscentralization_disconnected_graphs', 'newNW'] <- mean(Closeness_alternative[,"closeness"])
+  NWpropOverview['closenesscentralization_disconnected_graphs_normalized', 'newNW'] <- mean(Closeness_alternative[,"n.closeness"]) 
+
+  # 'fraction_nano', 'fraction_pico', 'fraction_euk', 'fraction_bac', 'fraction_en', 'fraction_ep', 'fraction_bn', 'fraction_bp'
+  Nodes <- V(G)$name
+  NWpropOverview['count_nano', 'newNW'] <- length(which(substr(Nodes,2,2)=="n"))
+  NWpropOverview['count_pico', 'newNW'] <- length(which(substr(Nodes,2,2)=="p"))
+  
+  NWpropOverview['count_euk', 'newNW'] <- length(which(substr(Nodes,1,1)=="e"))
+  NWpropOverview['count_bac', 'newNW'] <- length(which(substr(Nodes,1,1)=="b"))
+  
+  NWpropOverview['count_en', 'newNW'] <- length(which(substr(Nodes,1,2)=="en"))
+  NWpropOverview['count_ep', 'newNW'] <- length(which(substr(Nodes,1,2)=="ep"))
+  
+  NWpropOverview['count_bn', 'newNW'] <- length(which(substr(Nodes,1,2)=="bn"))
+  NWpropOverview['count_bp', 'newNW'] <- length(which(substr(Nodes,1,2)=="bp"))
+  
+  NWpropOverview['fraction_nano', 'newNW'] <- length(which(substr(Nodes,2,2)=="n"))/length(Nodes)*100
+  NWpropOverview['fraction_pico', 'newNW'] <- length(which(substr(Nodes,2,2)=="p"))/length(Nodes)*100
+  
+  NWpropOverview['fraction_euk', 'newNW'] <- length(which(substr(Nodes,1,1)=="e"))/length(Nodes)*100
+  NWpropOverview['fraction_bac', 'newNW'] <- length(which(substr(Nodes,1,1)=="b"))/length(Nodes)*100
+  
+  NWpropOverview['fraction_en', 'newNW'] <- length(which(substr(Nodes,1,2)=="en"))/length(Nodes)*100
+  NWpropOverview['fraction_ep', 'newNW'] <- length(which(substr(Nodes,1,2)=="ep"))/length(Nodes)*100
+  
+  NWpropOverview['fraction_bn', 'newNW'] <- length(which(substr(Nodes,1,2)=="bn"))/length(Nodes)*100
+  NWpropOverview['fraction_bp', 'newNW'] <- length(which(substr(Nodes,1,2)=="bp"))/length(Nodes)*100
+  
+  # update ID
+  colnames(NWpropOverview)[which(colnames(NWpropOverview)=="newNW")] <- ID
+
+  return(NWpropOverview)
+}
+```
+
+static nw
+```{r}
+NWprop_static <- get_nw_proterties(NW, "LS", "staticNW")
+NWprop_static <- t(NWprop_static)
+NWprop_static <- cbind(rownames(NWprop_static),NWprop_static)
+colnames(NWprop_static)[1] <- "Sample"
+```
+
+dyn nw
+```{r}
+COLNAMES <- colnames(NW)[grep("BL",colnames(NW))]
+NWprop <- get_nw_proterties(NW[which(NW[,COLNAMES[1]]==1),], "LS", COLNAMES[1])
+
+for(i in c(2:120))
+{
+  NWpropnew <- get_nw_proterties(NW[which(NW[,COLNAMES[i]]==1),], "LS", COLNAMES[i])
+  NWprop <- cbind(NWprop, NWpropnew)
+}
+
+NWprop <- t(NWprop)
+NWprop <- cbind(rownames(NWprop),NWprop)
+colnames(NWprop)[1] <- "Sample"
+```
+
+Save tables
+```{r}
+write.table(NWprop_static,
+            paste(PATH,"/3_NetworkProperties/NW_properties_overview_staticNW.tsv",sep=""),
+            row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t", dec = ".")
+write.table(NWprop,
+            paste(PATH,"/3_NetworkProperties/NW_properties_overview_dynNW.tsv",sep=""),
+            row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t", dec = ".")
+```
+
+Visualize
+```{r}
+NWprop <- read.table(paste(PATH,"/3_NetworkProperties/NW_properties_overview_dynNW.tsv",sep=""), header = TRUE)
+NWprop$Month <- c(1:120)
+NWprop$Month_ID <- rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10)
+NWprop_stat <- read.table(paste(PATH,"/3_NetworkProperties/NW_properties_overview_staticNW.tsv",sep=""), header = TRUE)
+```
+
+Network property change in time
+- edge density
+- average positive association score
+- transitivity
+- average path length
+- assortativity (degree)
+- assortativity (Bac-Euk)
+```{r}
+dt_temp <- NWprop[c(1:120),c("Month", "edge_density", "Month_ID")]
+p_temp <- ggplot(dt_temp, aes(x=Month, y=edge_density)) +
+          geom_line() +
+          geom_hline(yintercept = as.numeric(NWprop_stat$edge_density), linetype = "dashed", colour = "black") +
+          geom_point(color=Color_Months[dt_temp$Month_ID],size=5) + 
+          ylab("edge density") + xlab("Months")
+
+dt_temp <- NWprop[c(1:120),c("Month", "average_pos_association_strength", "Month_ID")]
+p_temp <- ggplot(dt_temp, aes(x=Month, y=average_pos_association_strength)) +
+          geom_line() + 
+          geom_hline(yintercept = as.numeric(NWprop_stat$average_pos_association_strength), linetype = "dashed", colour = "black") +
+          geom_point(color=Color_Months[dt_temp$Month_ID],size=5) + 
+          ylab("avg pos ass strength") + xlab("Months")
+
+dt_temp <- NWprop[c(1:120),c("Month", "transitivity_global_clusering_coef", "Month_ID")]
+p_temp <- ggplot(dt_temp, aes(x=Month, y=transitivity_global_clusering_coef)) + 
+          geom_line() + 
+          geom_hline(yintercept = as.numeric(NWprop_stat$transitivity_global_clusering_coef), linetype = "dashed", colour = "black") +
+          geom_point(color=Color_Months[dt_temp$Month_ID],size=5) + 
+          ylab("transitivity") + xlab("Months")
+
+dt_temp <- NWprop[c(1:120),c("Month", "ave_path_length", "Month_ID")]
+p_temp <- ggplot(dt_temp, aes(x=Month, y=ave_path_length)) + 
+          geom_line() + 
+          geom_hline(yintercept = as.numeric(NWprop_stat$ave_path_length), linetype = "dashed", colour = "black") +
+          geom_point(color=Color_Months[dt_temp$Month_ID],size=5) + 
+          ylab("avg path length") + xlab("Months")
+
+dt_temp <- NWprop[c(1:120),c("Month", "assortativity_degree", "Month_ID")]
+p_temp <- ggplot(dt_temp, aes(x=Month, y=assortativity_degree)) + 
+          geom_line() + 
+          geom_hline(yintercept = as.numeric(NWprop_stat$assortativity_degree), linetype = "dashed", colour = "black") +
+          geom_point(color=Color_Months[dt_temp$Month_ID],size=5) + 
+          ylab("assortativity (degree)") + xlab("Months")
+
+dt_temp <- NWprop[c(1:120),c("Month", "assortativity_nominal_EukProk", "Month_ID")]
+p_temp <- ggplot(dt_temp, aes(x=Month, y=assortativity_nominal_EukProk)) + 
+          geom_line() +
+          geom_hline(yintercept = as.numeric(NWprop_stat$assortativity_nominal_EukProk), linetype = "dashed", colour = "black") +
+          geom_point(color=Color_Months[dt_temp$Month_ID],size=5) + 
+          ylab("assortativity (Bac-Euk)") + xlab("Months")
+```
+
+
+
+## Association prevalence
+- quantifying association recurrence in time
+```{r}
+TempNW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+TempNW$prevalence_numMonths <- rowSums(TempNW[,which(substr(colnames(TempNW),1,2)=="BL")])
+TempNW$prevalence_fractionMonths <- TempNW$prevalence_numMonths/120*100
+hist(TempNW$prevalence_numMonths, breaks = 100)
+hist(TempNW$prevalence_fractionMonths, breaks = 100)
+ggplot(TempNW, aes(y=prevalence_numMonths,x="Prevalence")) + geom_violin() + geom_boxplot(width=0.1)
+```
+
+```{r}
+summary(TempNW$prevalence_numMonths)
+summary(TempNW$prevalence_fractionMonths)
+```
+ Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  18.00   33.00   38.00   40.66   46.00  118.00 
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  15.00   27.50   31.67   33.89   38.33   98.33 
+  
+```{r}
+sort(TempNW$prevalence_numMonths, decreasing = TRUE)[1:101]
+sort(TempNW$prevalence_fractionMonths, decreasing = TRUE)[1:101]
+```
+  [1] 118 118 118 118 117 117 116 116 116 111 109 108 108 108 107 106 106 104 104 104 102 102 101 101 101 101 101 101 101 101 100 100 100  99  99  99  99  98  98  98  98  97  97  97  96  96  95  95  95  95  95  95  95
+ [54]  94  94  94  93  93  93  92  92  92  92  91  91  91  91  90  90  90  90  90  90  90  89  89  89  88  88  88  88  87  87  87  87  87  87  87  87  87  87  86  86  86  86  86  86  86  86  86  85
+  [1] 98.33333 98.33333 98.33333 98.33333 97.50000 97.50000 96.66667 96.66667 96.66667 92.50000 90.83333 90.00000 90.00000 90.00000 89.16667 88.33333 88.33333 86.66667 86.66667 86.66667 85.00000 85.00000 84.16667
+ [24] 84.16667 84.16667 84.16667 84.16667 84.16667 84.16667 84.16667 83.33333 83.33333 83.33333 82.50000 82.50000 82.50000 82.50000 81.66667 81.66667 81.66667 81.66667 80.83333 80.83333 80.83333 80.00000 80.00000
+ [47] 79.16667 79.16667 79.16667 79.16667 79.16667 79.16667 79.16667 78.33333 78.33333 78.33333 77.50000 77.50000 77.50000 76.66667 76.66667 76.66667 76.66667 75.83333 75.83333 75.83333 75.83333 75.00000 75.00000
+ [70] 75.00000 75.00000 75.00000 75.00000 75.00000 74.16667 74.16667 74.16667 73.33333 73.33333 73.33333 73.33333 72.50000 72.50000 72.50000 72.50000 72.50000 72.50000 72.50000 72.50000 72.50000 72.50000 71.66667
+ [93] 71.66667 71.66667 71.66667 71.66667 71.66667 71.66667 71.66667 71.66667 70.83333
+ 
+```{r}
+sort(TempNW$prevalence_numMonths, decreasing = FALSE)[1:129]
+sort(TempNW$prevalence_fractionMonths, decreasing = FALSE)[1:129]
+```
+
+[1] 18 18 19 19 19 19 19 19 19 19 19 19 19 19 19 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 22
+ [72] 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 22 23
+  [1] 15.00000 15.00000 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 15.83333 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667
+ [24] 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 16.66667 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000
+ [47] 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000 17.50000
+ [70] 17.50000 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333
+ [93] 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333
+[116] 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 18.33333 19.16667
+
+Top4
+```{r}
+sort(TempNW$prevalence_fractionMonths, decreasing = TRUE)[1:4]
+Top4 <- TempNW[which(TempNW$prevalence_fractionMonths>98),]
+Top4_Who <- Top4[,c(1,2)]
+TAX <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Taxonomy.txt",sep=""), header = TRUE)
+Top4_Who <- merge(Top4_Who,TAX, by.x="Source", by.y="ASVNAME", all.x=TRUE, all.y=FALSE)
+Top4_Who <- merge(Top4_Who,TAX, by.x="Target", by.y="ASVNAME", all.x=TRUE, all.y=FALSE)
+Top4_Who
+```
+
+Top 100
+```{r}
+Top100 <- TempNW[which(TempNW$prevalence_numMonths > sort(TempNW$prevalence_numMonths, decreasing = TRUE)[101]),c("Source","Target")]
+Top100$S_ID <- substr(Top100$Source,1,2)
+Top100$T_ID <- substr(Top100$Target,1,2)
+table(Top100[,c("S_ID","T_ID")])
+```
+
+```{r}
+Top100Nodes <- data.frame(OTU_name=unique(c(as.character(Top100$Source), as.character(Top100$Target))))
+Top100Nodes$ID <- substr(Top100Nodes$OTU_name,1,2)
+table(Top100Nodes$ID)
+```
+
+```{r}
+Prevalence <- TempNW[,c("Source","Target","prevalence_numMonths","prevalence_fractionMonths")]
+for(i in c(1:12))
+{
+  dt_temp <- TempNW[,which(as.numeric(substr(colnames(TempNW),5,6))==i)]
+  Prevalence[,paste("Month", substr(colnames(dt_temp)[1],5,6), sep="_")] <- rowSums(dt_temp)/10*100
+  
+  numZero <- length(which(Prevalence[,paste("Month", substr(colnames(dt_temp)[1],5,6), sep="_")]==0))
+  all100 <- length(which(Prevalence[,paste("Month", substr(colnames(dt_temp)[1],5,6), sep="_")]==100))
+  p <- ggplot(Prevalence, aes(x=Prevalence[,paste("Month", substr(colnames(dt_temp)[1],5,6), sep="_")])) + geom_histogram() + 
+    xlab(paste("Month ",i," (",numZero," 0%, ", all100, " 100%)",sep="")) + ylim(c(0,15000)) + theme_classic()
+  ggsave(paste(PATH,"3_NetworkProperties/AssociationPrevalence_Month_",substr(colnames(dt_temp)[1],5,6),".pdf",sep=""), plot=p, width=5, height=5)
+
+  OTUcount <- as.data.frame(table(substr(unique(c(as.character(Prevalence$Source[which(Prevalence[,paste("Month", substr(colnames(dt_temp)[1],5,6), sep="_")]==100)]),
+                                                  as.character(Prevalence$Source[which(Prevalence[,paste("Month", substr(colnames(dt_temp)[1],5,6), sep="_")]==100)]))),1,2)))
+  p <- ggplot(OTUcount, aes(x=factor(Var1, levels = c("bn","bp","en","ep")),y=Freq)) + geom_bar(stat="identity") + 
+     xlab("") + ylim(c(0,45)) + theme_classic()
+  ggsave(paste(PATH,"/03_NetworkProperties/Top100_OTU_count_Month_",substr(colnames(dt_temp)[1],5,6),".pdf",sep=""), plot=p, width=2, height=2)
+}
+```
+
+[1] 1
+bn bp en ep 
+26 33 35 21 
+[1] 2
+bn bp en ep 
+28 40 16 12 
+[1] 3
+bn bp en 
+29 11 13 
+[1] 4
+bn bp ep 
+ 3  6  2 
+[1] 5
+bn bp 
+11  8 
+[1] 6
+bn bp ep 
+ 8 21  3 
+[1] 7
+bn bp en ep 
+ 9 12  5  1 
+[1] 8
+bn bp en ep 
+ 5  7  2  2 
+[1] 9
+bn bp 
+10  7 
+[1] 10
+bn bp en ep 
+14  7  1  1 
+[1] 11
+bn bp en 
+22  5 16 
+[1] 12
+bn bp en ep 
+41 17 25 10 
+
+```{r}
+write.table(Prevalence, 
+            paste(PATH,"/3_NetworkProperties/AssociationPrevalence.tsv",sep=""),
+            col.names = TRUE, row.names=FALSE, sep="\t", dec=".", quote=FALSE)
+```
+
+## How many edges were preserved, lost, gained in consecutive months
+```{r}
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+dt <- data.frame(Month = colnames(NW)[grep("BL",colnames(NW))],
+                 Previous_Month = c("NA",colnames(NW)[grep("BL",colnames(NW))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+dt$num_edges <- colSums(NW[,grep("BL",colnames(NW))])
+dt$kept <- NA
+dt$new <- NA
+dt$lost <- NA
+dt$kept[1] <- dt$num_edges[1]
+dt$new[1] <- 0
+dt$lost[1] <- 0
+for(i in c(2:120))
+{
+  dt$kept[i] <- length(which(NW[,as.character(dt$Previous_Month[i])]==1 & NW[,as.character(dt$Month[i])]==1))
+  dt$lost[i] <- length(which(NW[,as.character(dt$Previous_Month[i])]==1 & NW[,as.character(dt$Month[i])]==0))
+  dt$new[i] <- length(which(NW[,as.character(dt$Previous_Month[i])]==0 & NW[,as.character(dt$Month[i])]==1))
+}
+head(dt)
+p <- ggplot(dt) + geom_point(data=dt, aes(x=num_Month, y=-10000, color=month_ID), size = 0.5) + scale_color_manual(values=Color_Months[as.character(dt$month_ID)]) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=kept), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=kept, yend=kept+new), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=-lost), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("number of edges") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Fraction
+```{r}
+dt$kept_percentage <- NA
+dt$new_percentage <- NA
+dt$lost_percentage <- NA
+dt$kept_percentage[1] <- 1
+dt$new_percentage[1] <- 0
+dt$lost_percentage[1] <- 0
+for(i in c(2:120))
+{
+  dt$kept_percentage[i] <- dt$kept[i]/(dt$num_edges[i-1])
+  dt$lost_percentage[i] <- dt$lost[i]/(dt$num_edges[i-1])
+  dt$new_percentage[i] <- dt$new[i]/(dt$num_edges[i-1])
+}
+p <- ggplot(dt) + geom_point(data=dt, aes(x=num_Month, y=-1.2, color=month_ID), size = 0.5) + scale_color_manual(values=Color_Months[as.character(dt$month_ID)]) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=kept_percentage), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=kept_percentage, yend=kept_percentage+new_percentage), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=-lost_percentage), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("fraction of edges") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Species
+```{r}
+Abund <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+rownames(Abund) <- Abund$ID
+Abund$ID <- NULL
+dt <- data.frame(Month = colnames(Abund)[grep("BL",colnames(Abund))],
+                 Previous_Month = c("NA",colnames(Abund)[grep("BL",colnames(Abund))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+dt$richness <- colSums(1*(Abund>0))
+dt$kept <- NA
+dt$new <- NA
+dt$lost <- NA
+dt$kept[1] <- dt$richness[1]
+dt$new[1] <- 0
+dt$lost[1] <- 0
+for(i in c(2:120))
+{
+  dt$kept[i] <- length(which(Abund[,as.character(dt$Previous_Month[i])]>0 & Abund[,as.character(dt$Month[i])]>0))
+  dt$lost[i] <- length(which(Abund[,as.character(dt$Previous_Month[i])]>0 & Abund[,as.character(dt$Month[i])]==0))
+  dt$new[i] <- length(which(Abund[,as.character(dt$Previous_Month[i])]==0 & Abund[,as.character(dt$Month[i])]>0))
+}
+max(dt$lost)
+p <- ggplot(dt) + geom_point(data=dt, aes(x=num_Month, y=-550, color=month_ID), size = 0.5) + scale_color_manual(values=Color_Months[as.character(dt$month_ID)]) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=kept), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=kept, yend=kept+new), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=-lost), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("number of ASVs") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Fraction
+```{r}
+dt$kept_percentage <- NA
+dt$new_percentage <- NA
+dt$lost_percentage <- NA
+dt$kept_percentage[1] <- 1
+dt$new_percentage[1] <- 0
+dt$lost_percentage[1] <- 0
+for(i in c(2:120))
+{
+  dt$kept_percentage[i] <- dt$kept[i]/(dt$richness[i-1])
+  dt$lost_percentage[i] <- dt$lost[i]/(dt$richness[i-1])
+  dt$new_percentage[i] <- dt$new[i]/(dt$richness[i-1])
+}
+max(dt$lost_percentage)
+p <- ggplot(dt) + geom_point(data=dt, aes(x=num_Month, y=-1, color=month_ID), size = 0.5) + scale_color_manual(values=Color_Months[as.character(dt$month_ID)]) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=kept_percentage), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=num_Month, xend=num_Month, y=kept_percentage, yend=kept_percentage+new_percentage), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=num_Month, xend=num_Month, y=0, yend=-lost_percentage), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("fraction of ASVs") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Summer vs winter
+```{r}
+ENV <- read.table(paste(PATH,"/1_TablesASVENV/ENV_abiotic_nutrients.tsv",sep=""), header = TRUE)
+ENV$month <- 1:120
+p <- ggplot(ENV) + geom_line(aes(x=month, y=ENV_Temp), color="grey") +
+              geom_point(aes(x=month, y=ENV_Temp), color="grey") +
+              geom_point(data=ENV[which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14),], aes(x=month, y=ENV_Temp), color="red") +
+              geom_point(data=ENV[which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11),], aes(x=month, y=ENV_Temp), color="blue") +
+              geom_abline(intercept = 17, slope = 0, color = "black") +
+              xlab("month") + ylab("water temperature in celsius") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+p <- ggplot(ENV) + geom_line(aes(x=month, y=ENV_Day_length_Hours_light), color="grey") +
+              geom_point(aes(x=month, y=ENV_Day_length_Hours_light), color="grey") +
+              geom_point(data=ENV[which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14),], aes(x=month, y=ENV_Day_length_Hours_light), color="red") +
+              geom_point(data=ENV[which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11),], aes(x=month, y=ENV_Day_length_Hours_light), color="blue") +
+              geom_abline(intercept = 11, slope = 0, color = "black") + geom_abline(intercept = 14, slope = 0, color = "black") +  geom_abline(intercept = 17, slope = 0, color = "black") +
+              xlab("month") + ylab("day length in light hours") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+as in Krabberod et al 2021 (bioRxiv)
+- months with water temperature > 17 and day length > 14 h/d ==> summer
+- months with water temperature < 17 and day length < 11 h/d ==> winter
+
+```{r}
+print(paste("Summer:",length(which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14)), "months"))
+print(as.character(ENV$ID[which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14)]))
+print(paste("Winter:",length(which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11)), "months"))
+print(as.character(ENV$ID[which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11)]))
+```
+
+[1] "Summer: 30 months"
+ [1] "BL040628" "BL040719" "BL050607" "BL050705" "BL050803" "BL060516" "BL060613" "BL060704" "BL060801" "BL070515" "BL070605" "BL070703" "BL070801" "BL080602" "BL080702" "BL080805" "BL090721" "BL090804" "BL100622" "BL100706"
+[21] "BL100803" "BL110517" "BL110615" "BL110704" "BL110802" "BL120620" "BL120703" "BL120807" "BL130709" "BL130801"
+[1] "Winter: 36 months"
+ [1] "BL040126" "BL040223" "BL041116" "BL041214" "BL050120" "BL050215" "BL051213" "BL060111" "BL060207" "BL061211" "BL070116" "BL070220" "BL071113" "BL071211" "BL080115" "BL080212" "BL081113" "BL081211" "BL090113" "BL090210"
+[21] "BL091222" "BL100120" "BL100217" "BL101116" "BL101214" "BL110112" "BL110208" "BL111129" "BL111219" "BL120110" "BL120214" "BL121106" "BL121211" "BL130115" "BL130206" "BL131204"
+
+Number edges in Summer
+```{r}
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+dt <- data.frame(Month = colnames(NW)[grep("BL",colnames(NW))],
+                 Previous_Month = c("NA",colnames(NW)[grep("BL",colnames(NW))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+rownames(dt) <- dt$num_Month
+dt$year <- rep(c(1:10),each=12)
+dt_summer <- dt[ENV$month[which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14)],]
+dt_temp <- data.frame(year = unique(dt_summer$year))
+dt_temp$num_edges <- NA
+for(y in c(1:dim(dt_temp)[1]))
+{
+  dt_temp$num_edges[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])>0))
+}
+dt_temp$kept <- NA
+dt_temp$new <- NA
+dt_temp$lost <- NA
+dt_temp$kept[1] <- dt_temp$num_edges[1]
+dt_temp$new[1] <- 0
+dt_temp$lost[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$lost[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])==0 &
+                                  rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$new[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y-1])]])])==0))
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept, yend=kept+new), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("number of edges") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+Fraction in summer
+```{r}
+dt_temp$kept_percentage <- NA
+dt_temp$new_percentage <- NA
+dt_temp$lost_percentage <- NA
+dt_temp$kept_percentage[1] <- 1
+dt_temp$new_percentage[1] <- 0
+dt_temp$lost_percentage[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept_percentage[y] <- dt_temp$kept[y]/(dt_temp$num_edges[y-1])
+  dt_temp$lost_percentage[y] <- dt_temp$lost[y]/(dt_temp$num_edges[y-1])
+  dt_temp$new_percentage[y] <- dt_temp$new[y]/(dt_temp$num_edges[y-1])
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept_percentage), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept_percentage, yend=kept_percentage+new_percentage), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost_percentage), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("fraction of edges") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Number edges in winter
+```{r}
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+dt <- data.frame(Month = colnames(NW)[grep("BL",colnames(NW))],
+                 Previous_Month = c("NA",colnames(NW)[grep("BL",colnames(NW))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+rownames(dt) <- dt$num_Month
+dt$year <- rep(c(1:10),each=12)
+dt_winter <- dt[ENV$month[which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11)],]
+dt_temp <- data.frame(year = unique(dt_winter$year))
+dt_temp$num_edges <- NA
+for(y in c(1:dim(dt_temp)[1]))
+{
+  dt_temp$num_edges[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])>0))
+}
+dt_temp$kept <- NA
+dt_temp$new <- NA
+dt_temp$lost <- NA
+dt_temp$kept[1] <- dt_temp$num_edges[1]
+dt_temp$new[1] <- 0
+dt_temp$lost[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$lost[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])==0 &
+                                  rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$new[y] <- length(which(rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(NW[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y-1])]])])==0))
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept, yend=kept+new), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("number of edges") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+Fraction in winter
+```{r}
+dt_temp$kept_percentage <- NA
+dt_temp$new_percentage <- NA
+dt_temp$lost_percentage <- NA
+dt_temp$kept_percentage[1] <- 1
+dt_temp$new_percentage[1] <- 0
+dt_temp$lost_percentage[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept_percentage[y] <- dt_temp$kept[y]/(dt_temp$num_edges[y-1])
+  dt_temp$lost_percentage[y] <- dt_temp$lost[y]/(dt_temp$num_edges[y-1])
+  dt_temp$new_percentage[y] <- dt_temp$new[y]/(dt_temp$num_edges[y-1])
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept_percentage), color="black") + #geom_point(aes(x=num_Month, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept_percentage, yend=kept_percentage+new_percentage), color="blue") + #geom_point(aes(x=num_Month, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost_percentage), color="red") + #geom_point(aes(x=num_Month, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("fraction of edges") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Species in summer
+```{r}
+Abund <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+rownames(Abund) <- Abund$ID
+Abund$ID <- NULL
+dt <- data.frame(Month = colnames(Abund)[grep("BL",colnames(Abund))],
+                 Previous_Month = c("NA",colnames(Abund)[grep("BL",colnames(Abund))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+rownames(dt) <- dt$num_Month
+dt$year <- rep(c(1:10),each=12)
+dt_summer <- dt[ENV$month[which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14)],]
+dt_temp <- data.frame(year = unique(dt_summer$year))
+dt_temp$richness <- NA
+for(y in c(1:dim(dt_temp)[1]))
+{
+  dt_temp$richness[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])>0))
+}
+dt_temp$kept <- NA
+dt_temp$new <- NA
+dt_temp$lost <- NA
+dt_temp$kept[1] <- dt_temp$richness[1]
+dt_temp$new[1] <- 0
+dt_temp$lost[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$lost[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])==0 &
+                                  rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$new[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(Abund[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==dt_temp$year[y-1])]])])==0))
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept), color="black") + #geom_point(aes(x=year, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept, yend=kept+new), color="blue") + #geom_point(aes(x=year, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost), color="red") + #geom_point(aes(x=year, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("number of ASVs") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Fraction in summer
+```{r}
+dt_temp$kept_percentage <- NA
+dt_temp$new_percentage <- NA
+dt_temp$lost_percentage <- NA
+dt_temp$kept_percentage[1] <- 1
+dt_temp$new_percentage[1] <- 0
+dt_temp$lost_percentage[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept_percentage[y] <- dt_temp$kept[y]/(dt_temp$richness[y-1])
+  dt_temp$lost_percentage[y] <- dt_temp$lost[y]/(dt_temp$richness[y-1])
+  dt_temp$new_percentage[y] <- dt_temp$new[y]/(dt_temp$richness[y-1])
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept_percentage), color="black") + #geom_point(aes(x=year, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept_percentage, yend=kept_percentage+new_percentage), color="blue") + #geom_point(aes(x=year, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost_percentage), color="red") + #geom_point(aes(x=year, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("fraction of ASVs") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Species in winter
+```{r}
+Abund <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+rownames(Abund) <- Abund$ID
+Abund$ID <- NULL
+dt <- data.frame(Month = colnames(Abund)[grep("BL",colnames(Abund))],
+                 Previous_Month = c("NA",colnames(Abund)[grep("BL",colnames(Abund))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+rownames(dt) <- dt$num_Month
+dt$year <- rep(c(1:10),each=12)
+dt_winter <- dt[ENV$month[which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11)],]
+dt_temp <- data.frame(year = unique(dt_winter$year))
+dt_temp$richness <- NA
+for(y in c(1:dim(dt_temp)[1]))
+{
+  dt_temp$richness[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])>0))
+}
+dt_temp$kept <- NA
+dt_temp$new <- NA
+dt_temp$lost <- NA
+dt_temp$kept[1] <- dt_temp$richness[1]
+dt_temp$new[1] <- 0
+dt_temp$lost[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$lost[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])==0 &
+                                  rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y-1])]])])>0))
+  dt_temp$new[y] <- length(which(rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y])]])])>0 &
+                                  rowSums(Abund[,as.character(dt$Month[dt_winter$num_Month[which(dt_winter$year==dt_temp$year[y-1])]])])==0))
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept), color="black") + #geom_point(aes(x=year, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept, yend=kept+new), color="blue") + #geom_point(aes(x=year, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost), color="red") + #geom_point(aes(x=year, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("number of ASVs") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Fraction in winter
+```{r}
+dt_temp$kept_percentage <- NA
+dt_temp$new_percentage <- NA
+dt_temp$lost_percentage <- NA
+dt_temp$kept_percentage[1] <- 1
+dt_temp$new_percentage[1] <- 0
+dt_temp$lost_percentage[1] <- 0
+for(y in c(2:dim(dt_temp)[1]))
+{
+  dt_temp$kept_percentage[y] <- dt_temp$kept[y]/(dt_temp$richness[y-1])
+  dt_temp$lost_percentage[y] <- dt_temp$lost[y]/(dt_temp$richness[y-1])
+  dt_temp$new_percentage[y] <- dt_temp$new[y]/(dt_temp$richness[y-1])
+}
+p <- ggplot(dt_temp) +
+  geom_segment(aes(x=year, xend=year, y=0, yend=kept_percentage), color="black") + #geom_point(aes(x=year, y=kept),color="black", shape=16) +
+  geom_segment(aes(x=year, xend=year, y=kept_percentage, yend=kept_percentage+new_percentage), color="blue") + #geom_point(aes(x=year, y=kept+new),color="blue", shape=17) + 
+  geom_segment(aes(x=year, xend=year, y=0, yend=-lost_percentage), color="red") + #geom_point(aes(x=year, y=-lost),color="red", shape=4) +
+  xlab("") + ylab("fraction of ASVs") + theme_classic() + theme(text = element_text(size = 12), legend.position = "none")
+p
+```
+
+Alluvial Plot
+```{r}
+library(alluvial)
+library(ggalluvial)
+library(reshape)
+ENV <- read.table(paste(PATH,"/1_TablesASVENV/ENV_abiotic_nutrients.tsv",sep=""), header = TRUE)
+ENV$month <- 1:120
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE)
+dt <- data.frame(Month = colnames(NW)[grep("BL",colnames(NW))],
+                 Previous_Month = c("NA",colnames(NW)[grep("BL",colnames(NW))][-120]),
+                 num_Month = c(1:120),
+                 month_ID = rep(c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"),10))
+rownames(dt) <- dt$num_Month
+dt$year <- rep(c(1:10),each=12)
+
+# Summer
+NW_Summer <- NW[,c("Source","Target")]
+dt_summer <- dt[ENV$month[which(ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14)],]
+for(y in c(1:10))
+{
+  NW_Summer[,paste("Y",y,sep="_")] <- 1*(rowSums(NW[,as.character(dt$Month[dt_summer$num_Month[which(dt_summer$year==y)]])])>0)
+}
+NW_Summer$Y_1_ID <- NA
+NW_Summer$Y_1_ID[which(NW_Summer$Y_1==0)] <- "A"
+NW_Summer$Y_1_ID[which(NW_Summer$Y_1==1)] <- "K"
+
+NW_Summer$Y_2_ID <- NA
+NW_Summer$Y_2_ID[which(NW_Summer$Y_1==0 & NW_Summer$Y_2==0)] <- "A"
+NW_Summer$Y_2_ID[which(NW_Summer$Y_1==0 & NW_Summer$Y_2==1)] <- "1G"
+NW_Summer$Y_2_ID[which(NW_Summer$Y_1==1 & NW_Summer$Y_2==1)] <- "K"
+NW_Summer$Y_2_ID[which(NW_Summer$Y_1==1 & NW_Summer$Y_2==0)] <- "L"
+NW_Summer$Y_2_ID[which(NW_Summer$Y_1==1 & rowSums(NW_Summer[,paste("Y",c(2:10),sep="_")])==0)] <- "FL" # Final Loss
+for(i in c(3:9))
+{
+  NW_Summer[,paste("Y",i,"ID",sep="_")] <- NA
+  NW_Summer[which(NW_Summer[,paste("Y",i-1,sep="_")]==0 & NW_Summer[,paste("Y",i,sep="_")]==0), paste("Y",i,"ID",sep="_")] <- "A"
+  NW_Summer[which(NW_Summer[,paste("Y",i-1,sep="_")]==0 & NW_Summer[,paste("Y",i,sep="_")]==1), paste("Y",i,"ID",sep="_")] <- "G"
+  NW_Summer[which(rowSums(NW_Summer[,paste("Y",c(1:(i-1)),sep="_")])==0 & NW_Summer[,paste("Y",i,sep="_")]==1), paste("Y",i,"ID",sep="_")] <- "1G"
+  NW_Summer[which(NW_Summer[,paste("Y",i-1,sep="_")]==1 & NW_Summer[,paste("Y",i,sep="_")]==1), paste("Y",i,"ID",sep="_")] <- "K"
+  NW_Summer[which(NW_Summer[,paste("Y",i-1,sep="_")]==1 & NW_Summer[,paste("Y",i,sep="_")]==0), paste("Y",i,"ID",sep="_")] <- "L"
+  NW_Summer[which(NW_Summer[,paste("Y",i-1,sep="_")]==1 & rowSums(NW_Summer[,paste("Y",c(i:10),sep="_")])==0), paste("Y",i,"ID",sep="_")] <- "FL" # Final Loss
+}
+NW_Summer$Y_10_ID <- NA
+NW_Summer$Y_10_ID[which(NW_Summer$Y_9==0 & NW_Summer$Y_10==0)] <- "A"
+NW_Summer$Y_10_ID[which(NW_Summer$Y_9==0 & NW_Summer$Y_10==1)] <- "G"
+NW_Summer$Y_10_ID[which(rowSums(NW_Summer[,paste("Y",c(1:9),sep="_")])==0 & NW_Summer$Y_9==1)] <- "1G"
+NW_Summer$Y_10_ID[which(NW_Summer$Y_9==1 & NW_Summer$Y_10==1)] <- "K"
+NW_Summer$Y_10_ID[which(NW_Summer$Y_9==1 & NW_Summer$Y_10==0)] <- "FL" # Final Loss
+
+NW_Summer$Freq <- 1
+NW_Summer$prevalence <- rowSums(NW_Summer[,paste("Y",c(1:10),sep="_")])
+length(which(NW_Summer$prevalence==0))
+NW_Summer <- NW_Summer[which(NW_Summer$prevalence>0),]
+NW_Summer$ID <- paste("Edge",c(1:dim(NW_Summer)[1]),sep="_")
+dt_temp <- melt(NW_Summer[,c("ID",paste("Y",c(1:10),"ID",sep="_"),"prevalence","Freq")])
+dt_temp <- melt(NW_Summer[,c("ID","Y_1_ID","prevalence")])
+colnames(dt_temp) <- c("ID","category","variable","prevalence")
+dt_temp$variable <- 2004
+
+for(i in c(2:10))
+{
+  dt_temp2 <- melt(NW_Summer[,c("ID",paste("Y",i,"ID",sep="_"),"prevalence")])
+  colnames(dt_temp2) <- c("ID","category","variable","prevalence")
+  dt_temp2$variable <- 2004+i-1
+  dt_temp <- rbind(dt_temp,dt_temp2)
+}
+my_order <- c("K","1G","G","L","FL","A") # K = kept, 1G = first time gained, G = gained, L = lost, FL = final loss, A = absent
+my_color_boxes <- c(K="white",
+                    '1G'="purple",
+                    G="pink",
+                    L="yellow",
+                    FL="red",
+                    A="dark grey")
+p <- ggplot(dt_temp, aes(x=as.character(variable), stratum = factor(category, levels = rev(my_order)), alluvium = ID)) +
+            stat_alluvium(aes(color = prevalence), aes.bind = "flows") +
+            stat_stratum(aes(fill=category), width = 0.1) +
+            #scale_color_manual(values = my_color_boxes) +
+            scale_fill_manual(values = my_color_boxes) +
+            #stat_stratum(geom = "text", aes(label = category)) +
+            xlab("Summer 2004 - 2013") + ylab("Number of edges") +
+            theme_classic() + theme(text = element_text(size=12), legend.position = "none", legend.title = element_blank(),
+                          axis.line.y = element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_line(color="black"),
+                          axis.title.y = element_text(color="black"), axis.title.x = element_text(color="black"))
+p
+```
+
+```{r}
+# Winter
+NW_Winter <- NW[,c("Source","Target")]
+dt_Winter <- dt[ENV$month[which(ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11)],]
+for(y in c(1:10))
+{
+  NW_Winter[,paste("Y",y,sep="_")] <- 1*(rowSums(NW[,as.character(dt$Month[dt_Winter$num_Month[which(dt_Winter$year==y)]])])>0)
+}
+NW_Winter$Y_1_ID <- NA
+NW_Winter$Y_1_ID[which(NW_Winter$Y_1==0)] <- "A"
+NW_Winter$Y_1_ID[which(NW_Winter$Y_1==1)] <- "K"
+
+NW_Winter$Y_2_ID <- NA
+NW_Winter$Y_2_ID[which(NW_Winter$Y_1==0 & NW_Winter$Y_2==0)] <- "A"
+NW_Winter$Y_2_ID[which(NW_Winter$Y_1==0 & NW_Winter$Y_2==1)] <- "1G"
+NW_Winter$Y_2_ID[which(NW_Winter$Y_1==1 & NW_Winter$Y_2==1)] <- "K"
+NW_Winter$Y_2_ID[which(NW_Winter$Y_1==1 & NW_Winter$Y_2==0)] <- "L"
+NW_Winter$Y_2_ID[which(NW_Winter$Y_1==1 & rowSums(NW_Winter[,paste("Y",c(2:10),sep="_")])==0)] <- "FL" # Final Loss
+for(i in c(3:9))
+{
+  NW_Winter[,paste("Y",i,"ID",sep="_")] <- NA
+  NW_Winter[which(NW_Winter[,paste("Y",i-1,sep="_")]==0 & NW_Winter[,paste("Y",i,sep="_")]==0), paste("Y",i,"ID",sep="_")] <- "A"
+  NW_Winter[which(NW_Winter[,paste("Y",i-1,sep="_")]==0 & NW_Winter[,paste("Y",i,sep="_")]==1), paste("Y",i,"ID",sep="_")] <- "G"
+  NW_Winter[which(rowSums(NW_Winter[,paste("Y",c(1:(i-1)),sep="_")])==0 & NW_Winter[,paste("Y",i,sep="_")]==1), paste("Y",i,"ID",sep="_")] <- "1G"
+  NW_Winter[which(NW_Winter[,paste("Y",i-1,sep="_")]==1 & NW_Winter[,paste("Y",i,sep="_")]==1), paste("Y",i,"ID",sep="_")] <- "K"
+  NW_Winter[which(NW_Winter[,paste("Y",i-1,sep="_")]==1 & NW_Winter[,paste("Y",i,sep="_")]==0), paste("Y",i,"ID",sep="_")] <- "L"
+  NW_Winter[which(NW_Winter[,paste("Y",i-1,sep="_")]==1 & rowSums(NW_Winter[,paste("Y",c(i:10),sep="_")])==0), paste("Y",i,"ID",sep="_")] <- "FL" # Final Loss
+}
+NW_Winter$Y_10_ID <- NA
+NW_Winter$Y_10_ID[which(NW_Winter$Y_9==0 & NW_Winter$Y_10==0)] <- "A"
+NW_Winter$Y_10_ID[which(NW_Winter$Y_9==0 & NW_Winter$Y_10==1)] <- "G"
+NW_Winter$Y_10_ID[which(rowSums(NW_Winter[,paste("Y",c(1:9),sep="_")])==0 & NW_Winter$Y_9==1)] <- "1G"
+NW_Winter$Y_10_ID[which(NW_Winter$Y_9==1 & NW_Winter$Y_10==1)] <- "K"
+NW_Winter$Y_10_ID[which(NW_Winter$Y_9==1 & NW_Winter$Y_10==0)] <- "FL" # Final Loss
+
+NW_Winter$Freq <- 1
+NW_Winter$prevalence <- rowSums(NW_Winter[,paste("Y",c(1:10),sep="_")])
+length(which(NW_Winter$prevalence==0))
+NW_Winter <- NW_Winter[which(NW_Winter$prevalence>0),]
+NW_Winter$ID <- paste("Edge",c(1:dim(NW_Winter)[1]),sep="_")
+dt_temp <- melt(NW_Winter[,c("ID",paste("Y",c(1:10),"ID",sep="_"),"prevalence","Freq")])
+dt_temp <- melt(NW_Winter[,c("ID","Y_1_ID","prevalence")])
+colnames(dt_temp) <- c("ID","category","variable","prevalence")
+dt_temp$variable <- 2004
+
+for(i in c(2:10))
+{
+  dt_temp2 <- melt(NW_Winter[,c("ID",paste("Y",i,"ID",sep="_"),"prevalence")])
+  colnames(dt_temp2) <- c("ID","category","variable","prevalence")
+  dt_temp2$variable <- 2004+i-1
+  dt_temp <- rbind(dt_temp,dt_temp2)
+}
+my_order <- c("K","1G","G","L","FL","A") # K = kept, 1G = first time gained, G = gained, L = lost, FL = final loss, A = absent
+my_color_boxes <- c(K="white",
+                    '1G'="purple",
+                    G="pink",
+                    L="yellow",
+                    FL="red",
+                    A="dark grey")
+p <- ggplot(dt_temp, aes(x=as.character(variable), stratum = factor(category, levels = rev(my_order)), alluvium = ID)) +
+            stat_alluvium(aes(color = prevalence), aes.bind = "flows") +
+            stat_stratum(aes(fill=category), width = 0.1) +
+            #stat_stratum(geom = "text", aes(label = category)) +
+            scale_fill_manual(values = my_color_boxes) +
+            xlab("Winter 2004 - 2013") + ylab("Number of edges") +
+            theme_classic() + theme(text = element_text(size=12), legend.position = "none", legend.title = element_blank(),
+                          axis.line.y = element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_line(color="black"),
+                          axis.title.y = element_text(color="black"), axis.title.x = element_text(color="black"))
+```
+
+Accumulation Curves
+```{r}
+library(vegan)
+Abund <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+rownames(Abund) <- Abund$ID
+Abund$ID <- NULL
+myComm <- t(Abund)
+accum <- specaccum(myComm, method = "collector")
+plot(accum)
+```
+
+summer
+```{r}
+Abund <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+dt_temp_summer <- data.frame(ID = rownames(Abund))
+dt_temp_winter <- data.frame(ID = rownames(Abund))
+ENV$year <- rep(c(1:10),each=12)
+for(y in c(1:10))
+{
+  dt_temp_summer[,paste("year",y,sep="_")] <- 1*(rowSums(1*(Abund[,as.character(ENV$ID[which(ENV$year==y & ENV$ENV_Temp>17 & ENV$ENV_Day_length_Hours_light>14)])]>0))>0)
+  dt_temp_winter[,paste("year",y,sep="_")] <- 1*(rowSums(1*(Abund[,as.character(ENV$ID[which(ENV$year==y & ENV$ENV_Temp<17 & ENV$ENV_Day_length_Hours_light<11)])]>0))>0)
+}
+accum_Summer <- specaccum(t(dt_temp_summer[,-1]), method = "collector")
+accum_Winter <- specaccum(t(dt_temp_winter[,-1]), method = "collector")
+par(mfrow=c(1, 2))
+plot(accum_Summer, ylab = "accumulated number of ASV", xlab = "year", main = "summer", ylim = c(0,max(c(accum_Winter$richness, accum_Summer$richness))))
+plot(accum_Winter, ylab = "accumulated number of ASV", xlab = "year", main = "winter", ylim = c(0,max(c(accum_Winter$richness, accum_Summer$richness))))
+
+accum <- data.frame(ID = paste("year",c(1:10),sep="_"),
+                    accumSummer = accum_Summer$richness,
+                    accumWinter = accum_Winter$richness)
+dt_temp <- melt(accum)
+dt_temp$year <- rep(c(1:10),2)
+dt_temp$label <- c(paste("S",c(2004:2013)), paste("W",c(2004:2013)))
+p <- ggplot(dt_temp, aes(x=year, y=value, fill=variable, label=label)) + geom_line() + geom_point() + geom_text(nudge_y=-45) +
+           ylab("accumulated number of ASVs") + xlab("year") + theme_classic() +
+           theme(text = element_text(size = 12), legend.position = "none", axis.text.x = element_blank(), axis.text.y = element_text(color="black"),
+                 axis.ticks = element_line(color="black"))
+p
+```
+
+# Number of ASVs, nodes in single static network, temporal network, and isolated nodes
+```{r}
+ASV <- read.table(paste(PATH,"/1_TablesASVENV/ASV_Counts_sizefilter.txt",sep=""), header = TRUE)
+colnames(ASV)[grep("BL",colnames(ASV))] <- substr(colnames(ASV)[grep("BL",colnames(ASV))], 1,6)
+NW <- read.table(paste(PATH,"/2_Networks/NW_temporal.tsv",sep=""), header = TRUE, stringsAsFactors = FALSE)
+G <- graph_from_edgelist(as.matrix(NW[,c("Source","Target")]))
+vcount(G)
+ecount(G)
+```
+1709 ASVs to construct network, which then had 709 nodes and 16,626 edges
+
+count isolated nodes
+```{r}
+dt_ASVs <- data.frame(ID=ASV$ID)
+Nodes_nw <- data.frame(ID=ASV$ID)
+rownames(Nodes_nw) <- Nodes_nw$ID
+Nodes_nw[,"stNW"] <- 0
+Nodes_nw[unique(c(as.character(NW$Source),as.character(NW$Target))),"stNW"] <- 1
+for(i in colnames(NW)[grep("BL",colnames(NW))])
+{
+  Nodes_nw[,i] <- 0
+  Nodes_nw[unique(c(as.character(NW$Source[which(NW[,i]>0)]),
+                    as.character(NW$Target[which(NW[,i]>0)]))),i] <- 1
+  dt_ASVs[,i] <- 1*(ASV[,i]>0)
+}
+```
+
+-> isolated nodes are present in static network and dt_ASV for month m!
+```{r}
+nodes_with_isolated <- dt_ASVs
+nodes_with_isolated[,-1] <- nodes_with_isolated[,-1] + 10*Nodes_nw$stNW + 100*Nodes_nw[,-c(1,2)]
+```
+-> 0 = not present in static network and not present in ASV table for that month and not present in temporal network
+-> 1 = present in ASV table, but not in static network and not present in temporal network
+-> 10 = present in static network, but not in that month and not present in temporal network
+-> 11 = present in static network and in that month and not present in temporal network
+-> 100, 101, 110 -> doesn't exist because in order for a node to be present in temporal network,
+                    it needs to be present in static network and also in that month
+-> 111 = present in static network and in that month and present in temporal network
+---> Isolated nodes?
+-> 111 are nodes that are not isolated
+->  11 are nodes that are present in month and static network, but isolated in temporal network!
+
+Number of isolated nodes
+```{r}
+dt_temp <- melt(nodes_with_isolated)
+dt_temp$value[which(dt_temp$value==111)] <- "connected nodes"
+dt_temp$value[which(dt_temp$value==11)] <- "isolated nodes (tempNW)"
+dt_temp$value[which(dt_temp$value==1)] <- "isolated nodes (stNW)"
+dt_temp$value[which(dt_temp$value==0 | dt_temp$value==10 | dt_temp$value==100)] <- "zero-abundance"
+dt_temp$year <- substr(dt_temp$variable,3,4)
+dt_temp$month <- substr(dt_temp$variable,5,6)
+dt_temp$monthID <- NA
+dt_temp$monthID[which(dt_temp$month=="01")] <- "Jan"
+dt_temp$monthID[which(dt_temp$month=="02")] <- "Feb"
+dt_temp$monthID[which(dt_temp$month=="03")] <- "Mar"
+dt_temp$monthID[which(dt_temp$month=="04")] <- "Apr"
+dt_temp$monthID[which(dt_temp$month=="05")] <- "May"
+dt_temp$monthID[which(dt_temp$month=="06")] <- "Jun"
+dt_temp$monthID[which(dt_temp$month=="07")] <- "Jul"
+dt_temp$monthID[which(dt_temp$month=="08")] <- "Aug"
+dt_temp$monthID[which(dt_temp$month=="09")] <- "Sep"
+dt_temp$monthID[which(dt_temp$month=="10")] <- "Oct"
+dt_temp$monthID[which(dt_temp$month=="11")] <- "Nov"
+dt_temp$monthID[which(dt_temp$month=="12")] <- "Dec"
+value_order <- rev(c("connected nodes","isolated nodes (tempNW)","isolated nodes (stNW)","zero-abundance"))
+value_col <- c('connected nodes'= "black",'isolated nodes (tempNW)'="red",'isolated nodes (stNW)'="grey",'zero-abundance'="lightgrey")
+p <- ggplot(dt_temp, aes(x=as.numeric(month), group=factor(value,levels=value_order), fill=factor(value,levels=value_order))) +
+            geom_histogram(bins=12) +
+            facet_grid(.~dt_temp$year) +
+            scale_fill_manual(values=value_col[dt_temp$value]) +
+            xlab("Month") + ylab("Number of OTUs") +
+            theme(text = element_text(size = 20)) +
+            theme_classic()
+p
+```
+
+```{r}
+Num_isolated_nodes_temp <- dt_temp[which(dt_temp$value=="isolated nodes (tempNW)"),]
+sort(table(Num_isolated_nodes_temp$variable))
+summary(as.numeric(table(Num_isolated_nodes_temp$variable)))
+```
+BL0710 BL0910 BL0911 BL1010 BL1211 BL0601 BL0711 BL1112 BL0409 BL0410 BL0806 BL0812 BL1009 BL1106 BL1110 BL1201 BL1207 BL0504 BL0505 BL0511 BL0712 BL0909 BL1008 BL1011 BL1012 BL1109 BL1308 BL0607 BL0707 BL0809 BL0810 
+     6      6      6      6      6      7      7      7      8      8      8      8      8      8      8      8      8      9      9      9      9      9      9      9      9      9      9     10     10     10     10 
+BL0906 BL1002 BL1003 BL1005 BL1101 BL1104 BL1204 BL1206 BL1209 BL1305 BL0604 BL0608 BL0611 BL0801 BL0802 BL0811 BL0901 BL0902 BL1001 BL1006 BL1007 BL1111 BL1210 BL0503 BL0609 BL0612 BL0808 BL1102 BL1107 BL1205 BL1212 
+    10     10     10     10     10     10     10     10     10     10     11     11     11     11     11     11     11     11     11     11     11     11     11     12     12     12     12     12     12     12     12 
+BL0411 BL0502 BL0507 BL0704 BL0706 BL0912 BL1108 BL1203 BL1208 BL1307 BL0405 BL0412 BL0510 BL0512 BL0602 BL0701 BL0708 BL0709 BL0803 BL0805 BL0905 BL0907 BL0908 BL1105 BL1202 BL0605 BL0703 BL1304 BL0501 BL0508 BL0603 
+    13     13     13     13     13     13     13     13     13     13     14     14     14     14     14     14     14     14     14     14     14     14     14     14     14     15     15     15     16     16     16 
+BL0702 BL1306 BL1309 BL0408 BL0610 BL0807 BL1004 BL1103 BL0407 BL0509 BL0804 BL0903 BL0904 BL1301 BL1302 BL0404 BL1310 BL0506 BL0705 BL1303 BL0406 BL0402 BL0606 BL0403 BL1311 BL0401 BL1312 
+    16     16     16     17     17     17     17     17     18     18     18     18     18     18     18     19     19     20     20     20     21     23     23     25     32     37     38 
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   6.00   10.00   12.00   13.18   15.25   38.00 
+
+
+
