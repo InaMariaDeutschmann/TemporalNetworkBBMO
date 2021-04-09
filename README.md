@@ -3,13 +3,13 @@
 Preprint: available soon
 
 This repository contains the data needed to redo the analysis:
-- *The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, and environmental data including nutrients
+- (The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, and environmental data including nutrients)
 - the networks
 - R-Markdowns for data analysis 
 - commands to run eLSA for network construction
 - commands to run EnDED for environmentally-driven-edge-detection and computing Jaccard index (EnDED available here: https://github.com/InaMariaDeutschmann/EnDED)
 
-* Data availability: The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, environmental data including nutrients will be publicly available after acceptance. The data are of course available to editors and reviewers upon request.
+Note: Data availability: The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, environmental data including nutrients will be publicly available after acceptance. The data are of course available to editors and reviewers upon request.
 
 
 ## CONTACT
