@@ -1,3 +1,7 @@
+![GitHub all releases](https://img.shields.io/github/downloads/InaMariaDeutschmann/TemporalNetworkBBMO/total?logo=Github&style=flat-square)
+![Twitter URL](https://img.shields.io/twitter/url?logo=Twitter&style=flat-square&url=https%3A%2F%2Fgithub.com%2FInaMariaDeutschmann%2FTemporalNetworkBBMO)
+![Twitter Follow](https://img.shields.io/twitter/follow/ina_deutschmann?logo=Twitter&style=flat-square)
+
 # Data and code for: Disentangling temporal associations in marine microbial networks
 
 Preprint: https://www.researchsquare.com/article/rs-404332/v1
