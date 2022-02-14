@@ -238,9 +238,13 @@ rm NW_temp.txt
 ## Removing environmental edges with EnDED
 prepare ASV-ENV edges
 ```{r}
-for(e in env$ID)
+ENV <- read.table(paste(PATH,"/01_TablesASVENV/ENV_abiotic_nutrients.txt",sep=""), header = TRUE)
+NW <- read.table(paste(PATH,"/02_Networks/NW_preliminary.txt",sep=""), header = TRUE)
+ENV_IDs <- as.character(rownames(env))
+ASV_IDs <- unique(c(as.character(NW$Source), as.character(NW$Target)))
+for(e in ENV_IDs)
 {
-  dt_temp <- data.frame(Source=as.character(ASV_network$ID), Target=e)
+  dt_temp <- data.frame(Source=ASV_IDs, Target=e)
   write.table(dt_temp, paste(PATH,"2_Networks/ASV_",e,".txt",sep=""),
               col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
 }
@@ -249,8 +253,8 @@ for(e in env$ID)
 prepare ASV-ASV edges
 - because EnDED wants same header as header in ASV-ENV edges
 ```{r}
-write.table(NW_filtered[,c("Source","Target")], paste(PATH,"/2_Networks/NW.txt",sep=""),
-              col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
+write.table(NW[,c("Source","Target")], paste(PATH,"/2_Networks/NW.txt",sep=""),
+            col.names = TRUE, row.names = FALSE, sep ="\t", quote = FALSE)
 ```
 
 EnDED
