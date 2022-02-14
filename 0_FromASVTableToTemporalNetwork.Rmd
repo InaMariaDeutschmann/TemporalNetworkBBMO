@@ -346,11 +346,11 @@ table(NW$COMBI_allENV[which(NW$LS<0)])
 26505 edge was kept by 10 ENV, i.e. removed by none (23405 pos and 3100 neg)
 
 ```{r}
-paste(length(which(NW$COMBI_allENV==10)), " (", length(which(NW$COMBI_allENV==10))/dim(NW)[1], "%) edges were kept in network")
-paste(length(which(NW$COMBI_allENV<10)), " (", length(which(NW$COMBI_allENV<10))/dim(NW)[1], "%) edges were removed from the network")
+paste(length(which(NW$COMBI_allENV==10)), " (", length(which(NW$COMBI_allENV==10))/dim(NW)[1]*100, "%) edges were kept in network")
+paste(length(which(NW$COMBI_allENV<10)), " (", length(which(NW$COMBI_allENV<10))/dim(NW)[1]*100, "%) edges were removed from the network")
 ```
-[1] "26505  ( 0.888832997987928 %) edges were kept in network"
-[1] "3315  ( 0.111167002012072 %) edges were removed from the network"
+[1] "26505  ( 88.8832997987928 %) edges were kept in network"
+[1] "3315  ( 11.1167002012072 %) edges were removed from the network"
 
 How many edges did II remove?
 ```{r}
@@ -365,6 +365,7 @@ table(rowSums(temp[,-c(1,2)]))
 length(which(rowSums(temp[,-c(1,2)])!=0))
 length(which(rowSums(temp[,-c(1,2)])!=0))/dim(NW)[1]*100
 ```
+   0    1    2    3    4    5    6 
 4063 8979 9572 5303 1589  294   20 
 [1] 25757
 [1] 86.37492
@@ -464,21 +465,22 @@ dt_env
 Filtering out environmentally-driven edges from network
 ```{r}
 NW_filtered <- NW[which(NW$COMBI_allENV==10),]
+length(unique(c(as.character(NW$Source), as.character(NW$Target))))
 length(unique(c(as.character(NW_filtered$Source), as.character(NW_filtered$Target))))
 dim(NW)[1]
 length(which(NW$LS>0))
-length(which(NW$LS>0))/dim(NW)*100
+length(which(NW$LS>0))/dim(NW)[1]*100
 length(which(NW$LS<0))
 length(which(NW$LS<0))/dim(NW)[1]*100
 dim(NW_filtered)[1]
 length(which(NW_filtered$LS>0))
-length(which(NW_filtered$LS>0))/dim(NW_filtered)*100
+length(which(NW_filtered$LS>0))/dim(NW_filtered)[1]*100
 length(which(NW_filtered$LS<0))
 length(which(NW_filtered$LS<0))/dim(NW_filtered)[1]*100
 ```
 -> All 754 nodes remain in network!
--> Before EnDED: 29,820 edges (24,458, 82.02% positive, and 5,362, 17.98% negative
--> After EnDED: 26,505 edges (23,405, 88.30% positive, and 3,100, 11.70% negative
+-> Before EnDED: 29,820 edges (24,458, 82.02% positive, and 5,362, 17.98% negative)
+-> After EnDED: 26,505 edges (23,405, 88.30% positive, and 3,100, 11.70% negative)
 
 Save tables
 ```{r}
@@ -625,7 +627,7 @@ paste("Compared to sizefraction-filtered table")
 paste("All ASV: ", dim(ASV_network)[1]/dim(ASV_sizefilter)[1]*100, sep="")
 paste("All reads: ", sum(ASV_network[,-1])/sum(ASV_sizefilter[,-1])*100, sep="")
 paste("Euk: ", length(which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en"))/length(which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"))*100, sep="")
-paste("Euk rads: ", sum(ASV_network[which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en"),-1])/sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"),-1])*100, sep="")
+paste("Euk reads: ", sum(ASV_network[which(substring(ASV_network$ID,1,2)=="ep" | substring(ASV_network$ID,1,2)=="en"),-1])/sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="ep" | substring(ASV_sizefilter$ID,1,2)=="en"),-1])*100, sep="")
 paste("Bac: ", length(which(substring(ASV_network$ID,1,2)=="bp" | substring(ASV_network$ID,1,2)=="bn"))/length(which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"))*100, sep="")
 paste("Bac reads: ", sum(ASV_network[which(substring(ASV_network$ID,1,2)=="bp" | substring(ASV_network$ID,1,2)=="bn"),-1])/sum(ASV_sizefilter[which(substring(ASV_sizefilter$ID,1,2)=="bp" | substring(ASV_sizefilter$ID,1,2)=="bn"),-1])*100, sep="")
 ```
@@ -634,7 +636,7 @@ paste("Bac reads: ", sum(ASV_network[which(substring(ASV_network$ID,1,2)=="bp" |
 [1] "All ASV: 41.4862492685781"
 [1] "All reads: 78.6264837367042"
 [1] "Euk: 29.1956305858987"
-[1] "Euk rads: 68.0585625336364"
+[1] "Euk raeds: 68.0585625336364"
 [1] "Bac: 59.1168091168091"
 [1] "Bac reads: 89.7373018974685"
 
