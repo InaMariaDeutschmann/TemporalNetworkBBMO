@@ -4,7 +4,7 @@
 
 # Data and code for: Disentangling temporal associations in marine microbial networks
 
-Preprint: https://www.researchsquare.com/article/rs-404332/v1
+Preprint: https://doi.org/10.1101/2021.07.13.452187
 
 This repository contains the data needed to redo the analysis:
 - The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, and environmental data including nutrients
