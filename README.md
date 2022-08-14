@@ -4,14 +4,17 @@
 
 # Data and code for: Disentangling temporal associations in marine microbial networks
 
-Preprint: https://doi.org/10.1101/2021.07.13.452187
-
 This repository contains the data needed to redo the analysis:
 - The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, and environmental data including nutrients
 - The networks
 - R-Markdowns for data analysis 
 - Commands to run eLSA for network construction
 - Commands to run EnDED for environmentally-driven-edge-detection and computing Jaccard index (EnDED available here: https://github.com/InaMariaDeutschmann/EnDED)
+
+## Citation
+Disentangling temporal associations in marine microbial networks
+Ina Maria Deutschmann, Anders K. Krabberød, L. Felipe Benites, Francisco Latorre, Erwan Delage, Celia Marrasè, Vanessa Balagué, Josep M. Gasol, Ramon Massana, Damien Eveillard, Samuel Chaffron, Ramiro Logares
+bioRxiv 2021.07.13.452187; doi: https://doi.org/10.1101/2021.07.13.452187
 
 ## CONTACT
 <div itemscope itemtype="https://schema.org/Person"><a itemprop="sameAs" content="https://orcid.org/0000-0002-3512-261X" href="https://orcid.org/0000-0002-3512-261X" target="orcid.widget" rel="noopener noreferrer" style="vertical-align:top;"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" style="width:1em;margin-right:.5em;" alt="ORCID iD icon">Ina Maria Deutschmann</a></div>
