@@ -1,6 +1,5 @@
+[![DOI](https://zenodo.org/badge/355175738.svg)](https://zenodo.org/doi/10.5281/zenodo.10244268)
 ![GitHub all releases](https://img.shields.io/github/downloads/InaMariaDeutschmann/TemporalNetworkBBMO/total?logo=Github&style=flat-square)
-![Twitter URL](https://img.shields.io/twitter/url?logo=Twitter&style=flat-square&url=https%3A%2F%2Fgithub.com%2FInaMariaDeutschmann%2FTemporalNetworkBBMO)
-![Twitter Follow](https://img.shields.io/twitter/follow/ina_deutschmann?logo=Twitter&style=flat-square)
 
 # Data and code for: Disentangling temporal associations in marine microbial networks
 
@@ -12,9 +11,7 @@ This repository contains the data needed to redo the analysis:
 - Commands to run EnDED for environmentally-driven-edge-detection and computing Jaccard index (EnDED available here: https://github.com/InaMariaDeutschmann/EnDED)
 
 ## Citation
-Disentangling temporal associations in marine microbial networks
-Ina Maria Deutschmann, Anders K. Krabberød, L. Felipe Benites, Francisco Latorre, Erwan Delage, Celia Marrasè, Vanessa Balagué, Josep M. Gasol, Ramon Massana, Damien Eveillard, Samuel Chaffron, Ramiro Logares
-bioRxiv 2021.07.13.452187; doi: https://doi.org/10.1101/2021.07.13.452187
+Ina Maria Deutschmann, Anders K. Krabberød, Francisco Latorre, Erwan Delage, Cèlia Marrasé, Vanessa Balagué, Josep M. Gasol, Ramon Massana, Damien Eveillard, Samuel Chaffron & Ramiro Logares. Disentangling temporal associations in marine microbial networks. Microbiome 11, 83 (2023). https://doi.org/10.1186/s40168-023-01523-z
 
 ## CONTACT
 <div itemscope itemtype="https://schema.org/Person"><a itemprop="sameAs" content="https://orcid.org/0000-0002-3512-261X" href="https://orcid.org/0000-0002-3512-261X" target="orcid.widget" rel="noopener noreferrer" style="vertical-align:top;"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" style="width:1em;margin-right:.5em;" alt="ORCID iD icon">Ina Maria Deutschmann</a></div>
