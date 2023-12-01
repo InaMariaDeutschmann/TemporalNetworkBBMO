@@ -2,6 +2,7 @@
 ![GitHub all releases](https://img.shields.io/github/downloads/InaMariaDeutschmann/TemporalNetworkBBMO/total?logo=Github&style=flat-square)
 
 # Data and code for: Disentangling temporal associations in marine microbial networks
+Publication: https://doi.org/10.1186/s40168-023-01523-z
 
 This repository contains the data needed to redo the analysis:
 - The BBMO microbial sequence abundances (ASV tables), taxonomic classifications, and environmental data including nutrients
